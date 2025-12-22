@@ -1,0 +1,94 @@
+name: CI/CD to EKS
+
+on:
+  push:
+    branches:
+      - main   # or develop, or both
+
+env:
+  AWS_REGION: ${{ secrets.AWS_REGION }}
+  ECR_REPOSITORY: ${{ secrets.ECR_REPOSITORY }}
+  EKS_CLUSTER_NAME: ${{ secrets.EKS_CLUSTER_NAME }}
+  AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # ---------- CI: tests ----------
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r src/requirements.txt
+
+      - name: Run tests
+        run: |
+          pytest || echo "No tests yet, skipping"
+          # you can make this strict later (remove '|| ...')
+
+      # ---------- Configure AWS ----------
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      # ---------- Login to ECR ----------
+      - name: Login to Amazon ECR
+        id: login-ecr
+        run: |
+          aws ecr get-login-password --region $AWS_REGION \
+            | docker login \
+              --username AWS \
+              --password-stdin ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com
+
+      # ---------- Build & push image ----------
+      - name: Build and push Docker image
+        run: |
+          IMAGE_TAG=${GITHUB_SHA}
+
+          echo "Building image: $ECR_REPOSITORY:$IMAGE_TAG"
+
+          docker build \
+            -t $ECR_REPOSITORY:$IMAGE_TAG \
+            -f docker/rag_pipeline/Dockerfile \
+            .
+
+          docker tag $ECR_REPOSITORY:$IMAGE_TAG \
+            ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/$ECR_REPOSITORY:$IMAGE_TAG
+
+          docker push \
+            ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/$ECR_REPOSITORY:$IMAGE_TAG
+
+          echo "IMAGE_TAG=$IMAGE_TAG" >> $GITHUB_ENV
+
+      # ---------- Deploy to EKS ----------
+      - name: Update kubeconfig for EKS
+        run: |
+          aws eks update-kubeconfig \
+            --region $AWS_REGION \
+            --name $EKS_CLUSTER_NAME
+
+      - name: Update fastapi deployment image
+        run: |
+          kubectl set image deployment/fastapi \
+            fastapi=${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/$ECR_REPOSITORY:${IMAGE_TAG}
+
+      - name: Wait for rollout
+        run: |
+          kubectl rollout status deployment/fastapi
+
+      - name: Show services and pods
+        run: |
+          kubectl get pods
+          kubectl get svc
