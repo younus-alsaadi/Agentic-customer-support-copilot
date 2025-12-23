@@ -26,6 +26,11 @@ class Cases(BaseModel):
     case_created_at: datetime = Field(default_factory=datetime.utcnow)
     case_updated_at: datetime = Field(default_factory=datetime.utcnow)
 
+
+    class Config:
+        # allow reading from SQLAlchemy objects
+        from_attributes = True  # pydantic v2
+
     @classmethod
     def get_indexes(cls):
         return [
