@@ -16,7 +16,7 @@ CaseStatus = Literal[
 ]
 
 class Cases(BaseModel):
-    case_id: UUID = Field(default_factory=uuid4)
+    case_uuid: UUID = Field(default_factory=uuid4)
 
     case_status: CaseStatus = "new"
     case_status_meta: Optional[Dict[str, Any]] = None
