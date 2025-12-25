@@ -6,3 +6,4 @@ from .auth_sessions_tabel import AuthSessions
 from .drafts_tabel import Drafts
 from .extractions_tabel import Extractions
 from .reviews_tabel import Reviews
+from .contracts_tabel import Contracts

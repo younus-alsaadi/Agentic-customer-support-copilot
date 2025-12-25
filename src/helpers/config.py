@@ -53,6 +53,10 @@ class Settings(BaseSettings):
     PRIMARY_LANG: str = "en"
     DEFAULT_LANG: str = "en"
 
+    PII_HASH_SALT : str
+
+    REQUIRED_FIELDS_FOR_VERIFICATION:List[str]
+    SENSITIVE_INTENTS:List[str]
     class Config:
         env_file = ENV_PATH
 

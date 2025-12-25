@@ -41,7 +41,7 @@ class TemplateParser:
 
 
         module = __import__(
-            f"src.stores.llms.templates.locales.{targeted_language}.{group}",
+            f"src.llms.templates.locales.{targeted_language}.{group}",
             fromlist=[group]
         )
 

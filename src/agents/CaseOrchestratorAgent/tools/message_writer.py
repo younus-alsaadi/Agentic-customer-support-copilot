@@ -53,9 +53,9 @@ async def message_writer(
     message_model = await MessagesModel.create_instance(db_client=container.db_client)
 
     msg = Messages(
-        case_id=case_uuid,          # FK -> cases.case_uuid
+        case_id=case_uuid,
         direction=direction,
-        subject=subject_raw,        # store original subject
+        subject=subject_raw,
         body=body_raw,
         from_email=from_email,
     )

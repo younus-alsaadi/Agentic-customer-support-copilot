@@ -18,7 +18,7 @@ class AuthSessions(SQLAlchemyBase):
     # List of required identity fields (e.g. ["contract_number", "postal_code", "installment_amount"])
     required_fields = Column(JSONB, nullable=True)
 
-    # Provided identity fields (store masked/hashed values only)
+    # Provided identity fields (store masked/hashed values only)( # postal_code + contract_number store as hash (Privacy note (PII)))
     provided_fields = Column(JSONB, nullable=True)
 
     # missing / success / failed

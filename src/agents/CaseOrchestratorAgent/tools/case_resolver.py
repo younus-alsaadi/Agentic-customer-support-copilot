@@ -62,7 +62,7 @@ async def case_resolver(container,from_email, subject, body):
         case_status_meta={
             "customer_email": from_email,
             "subject_norm": normalized_subject,
-            # you can store any thread key you invent for mocking
+            "auth_attempts":0
         },
         case_channel="Email",
 
