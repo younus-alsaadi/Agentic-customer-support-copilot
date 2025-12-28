@@ -2,8 +2,8 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 from pathlib import Path
 from typing import List, Optional
 
-THIS_DIR = Path(__file__).resolve().parent          # …/src/helpers
-ENV_PATH = THIS_DIR.parent / ".env"
+THIS_DIR = Path(__file__).resolve().parent      # .../src/helpers
+ENV_PATH = THIS_DIR.parent / ".env"        # .../project_root/.env
 
 
 class Settings(BaseSettings):
@@ -57,8 +57,23 @@ class Settings(BaseSettings):
 
     REQUIRED_FIELDS_FOR_VERIFICATION:List[str]
     SENSITIVE_INTENTS:List[str]
-    class Config:
-        env_file = ENV_PATH
+
+    EMAIL_USER : str
+    EMAIL_PASS : str
+
+    IMAP_HOST : str
+    IMAP_PORT : int
+
+    SMTP_HOST : str
+    SMTP_PORT : int
+    SMTP_STARTTLS : int
+    SMTP_SSL:int
+
+    model_config = SettingsConfigDict(env_file=str(ENV_PATH), extra="ignore")
+
+
+
 
 def get_settings() -> Settings:
     return Settings()
+

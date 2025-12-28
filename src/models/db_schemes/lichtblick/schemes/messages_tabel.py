@@ -15,6 +15,7 @@ class Messages(SQLAlchemyBase):
     subject = Column(String, nullable=True)
     body = Column(String, nullable=False)
     from_email = Column(String, nullable=False)
+    to_email = Column(String, nullable=False)
     received_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
     case = relationship("Cases", back_populates="messages")
