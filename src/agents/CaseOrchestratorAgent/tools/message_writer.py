@@ -1,13 +1,10 @@
-import asyncio
 import re
 import logging
 from typing import Optional, Literal
 
-from src.agents.CaseOrchestratorAgent.tools.case_resolver import case_resolver
 from src.models.MessagesModel import MessagesModel
 from src.models.db_schemes import Messages
 from src.logs.log import build_logger
-from src.utils.client_deps_container import DependencyContainer
 
 log = build_logger(level=logging.DEBUG)
 
@@ -34,6 +31,7 @@ async def message_writer(
     subject: Optional[str],
     body: str,
     from_email: str,
+    to_email: str,
 ) -> Messages:
     """
     Stores one email message (inbound/outbound) in the Messages table.
@@ -58,6 +56,7 @@ async def message_writer(
         subject=subject_raw,
         body=body_raw,
         from_email=from_email,
+        to_email=to_email,
     )
 
     try:
@@ -67,54 +66,3 @@ async def message_writer(
         raise
 
     return new_message
-
-
-# test
-async def main():
-    container = await DependencyContainer.create()
-
-    emails = [
-        {
-            "from_email": "customer@example.com",
-            "subject": "Meter reading",
-            "body": "Hello, my meter reading is 12345.",
-        },
-        {
-            "from_email": "customer@example.com",
-            "subject": "Re: Meter reading [CASE: 39dd8ad7-13ee-4735-ab3e-635fcd0bd39b]",
-            "body": "Here is the missing info you asked for.",
-        },
-        {
-            "from_email": "customer@example.com",
-            "subject": "Re: Meter reading",
-            "body": "Another follow-up without token.",
-        },
-        {
-            "from_email": "other@example.com",
-            "subject": "Tariff question",
-            "body": "Can you explain the dynamic tariff?",
-        },
-    ]
-
-    for i, email in enumerate(emails, start=1):
-        case = await case_resolver(
-            container=container,
-            from_email=email["from_email"],
-            subject=email["subject"],
-            body=email["body"],
-        )
-
-        msg = await message_writer(
-            container=container,
-            case_uuid=case.case_uuid,  # IMPORTANT: use case_uuid
-            direction="inbound",
-            subject=email["subject"],
-            body=email["body"],
-            from_email=email["from_email"],
-        )
-
-        print(f"[Email {i}] case_uuid={case.case_uuid}  message_id={msg.message_id}  subject={msg.subject}")
-
-
-if __name__ == "__main__":
-    asyncio.run(main())

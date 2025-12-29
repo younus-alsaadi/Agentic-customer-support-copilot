@@ -18,9 +18,8 @@ from typing import Any, Dict, Optional
 
 
 async def extract_intents_entities(
-    template_parser,
-    generation_model_client,
-    case_uuid: str,
+    container,
+    case_id: str,
     message_id: str,
     from_email: str,
     subject: Optional[str],
@@ -32,12 +31,12 @@ async def extract_intents_entities(
     """
 
     # 1) Load templates
-    system_prompt = template_parser.get_template_from_locales(
+    system_prompt = container.template_parser.get_template_from_locales(
         "extract_intents", "system_prompt"
     )
 
     # 2) Build document prompt (email content)
-    document_prompt = template_parser.get_template_from_locales(
+    document_prompt = container.template_parser.get_template_from_locales(
         "extract_intents",
         "document_prompt",
         {
@@ -48,20 +47,20 @@ async def extract_intents_entities(
     )
 
     # 3) Build footer (schema + few-shot + task variables)
-    footer_prompt = template_parser.get_template_from_locales(
+    footer_prompt = container.template_parser.get_template_from_locales(
         "extract_intents",
         "footer_prompt",
         {
-            "case_uuid": str(case_uuid),
+            "case_id": str(case_id),
             "message_id": str(message_id),
         },
     )
 
     # 4) Chat history: system message only
     chat_history = [
-        generation_model_client.construct_prompt(
+        container.generation_client.construct_prompt(
             prompt=system_prompt,
-            role=generation_model_client.enums.SYSTEM.value,
+            role=container.generation_client.enums.SYSTEM.value,
         )
     ]
 
@@ -69,7 +68,7 @@ async def extract_intents_entities(
     full_prompt = "\n\n".join([document_prompt, footer_prompt])
 
     # 6) Generate
-    answer, total_tokens, cost = generation_model_client.generate_text(
+    answer, total_tokens, cost =container.generation_client.generate_text(
         prompt=full_prompt,
         chat_history=chat_history,
     )
@@ -119,7 +118,7 @@ def _validate_extraction_schema(obj: Dict[str, Any]) -> None:
     Extend later with Pydantic if you want.
     """
     required_top_keys = {
-        "case_uuid",
+        "case_id",
         "message_id",
         "language",
         "intents",
@@ -148,12 +147,12 @@ async def save_extraction(
     llm_result
 ) -> Extractions:
 
-    for k in ("case_uuid", "message_id", "intents", "entities", "overall_confidence"):
+    for k in ("case_id", "message_id", "intents", "entities", "overall_confidence"):
         if k not in llm_result:
             raise ValueError(f"llm_result missing required key: {k}")
 
     # Convert IDs to UUID objects (DB uses UUID type)
-    case_uuid = UUID(str(llm_result["case_uuid"]))
+    case_id = UUID(str(llm_result["case_id"]))
     message_id = UUID(str(llm_result["message_id"]))
 
 
@@ -168,7 +167,7 @@ async def save_extraction(
     extraction_model = await ExtractionsModel.create_instance(db_client=container.db_client)
 
     extraction_row = Extractions(
-        case_id=case_uuid,
+        case_id=case_id,
         message_id=message_id,
         intents=intents,
         entities=entities,
@@ -234,8 +233,6 @@ async def main():
     )
 
     llms_intents_entities= await extract_intents_entities(
-        template_parser=template_parser,
-        generation_model_client=generation_model_client,
         case_uuid=case.case_uuid,
         message_id=msg.message_id,
         from_email=emails[0]["from_email"],
@@ -247,9 +244,9 @@ async def main():
         container=container,
         llm_result=llms_intents_entities)
 
-    auth_required = auth_policy_evaluator(intents=llms_intents_entities["intents"])
+    #auth_required = auth_policy_evaluator(intents=llms_intents_entities["intents"])
 
-    print(auth_required)
+    #print(auth_required)
 
 
 

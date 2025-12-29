@@ -4,6 +4,7 @@ import logging
 from src.logs.log import build_logger
 log = build_logger(level=logging.DEBUG)
 
+from typing import Dict, Any, List
 
 """
   "intents": [
@@ -54,34 +55,38 @@ SENSITIVE_INTENTS = {
     "ContractIssue",
 }
 
-DEFAULT_REQUIRED_FIELDS = ["contract_number", "postal_code"]
+# DEFAULT_REQUIRED_FIELDS = ["contract_number", "postal_code"]
 
-from typing import Dict, Any, List
+def separate_auth_intents(
+    intents: List[Dict[str, Any]] | None
+) -> dict:
 
-def get_non_auth_intents(intents: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    """
-    Return only intents that do NOT require authentication.
+    auth_intents: List[Dict[str, Any]] = []
+    non_auth_intents: List[Dict[str, Any]] = []
 
-    Input example (intents):
-      [{"name": "...", "requires_auth": True/False, "confidence": 0.9, "reason": "..."}]
-
-    Output:
-      [{"name": "...", "confidence": 0.9, "requires_auth": False, "reason": "..."}]
-    """
-    non_auth = []
     for intent in intents or []:
         if not isinstance(intent, dict):
             continue
 
-        requires_auth = bool(intent.get("requires_auth", False))
-        if requires_auth:
-            continue
+        name = (intent.get("name") or "Other").strip()
+        model_requires_auth = bool(intent.get("requires_auth", False))
+        rule_requires_auth = name in SENSITIVE_INTENTS
 
-        non_auth.append({
-            "name": intent.get("name") or "Other",
+        final_requires_auth = model_requires_auth or rule_requires_auth
+
+        item = {
+            "name": name,
             "confidence": intent.get("confidence"),
-            "requires_auth": False,
+            "requires_auth": final_requires_auth,
             "reason": intent.get("reason"),
-        })
+        }
 
-    return non_auth
+        if final_requires_auth:
+            auth_intents.append(item)
+        else:
+            non_auth_intents.append(item)
+
+    return {
+        "auth_intents": auth_intents,
+        "non_auth_intents": non_auth_intents,
+    }

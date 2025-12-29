@@ -7,7 +7,7 @@ from langgraph.graph import StateGraph, END
 from langchain_community.chat_models import ChatOpenAI
 
 
-from src.agents.CaseOrchestratorAgent.CaseState import State
+from src.agents.CaseOrchestratorAgent.AgentState import State
 from src.helpers.config import get_settings
 
 from dotenv import load_dotenv

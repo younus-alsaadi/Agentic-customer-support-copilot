@@ -1,9 +1,15 @@
+import asyncio
+
 from langgraph.graph import StateGraph, END
 
-from langchain_community.chat_models import ChatOpenAI
-
-
-from src.agents.CaseOrchestratorAgent.CaseState import State
+from src.agents.CaseOrchestratorAgent.AgentState import AgentState
+from src.agents.CaseOrchestratorAgent.nodes import (
+    create_case_node,
+    create_msg_node,
+    extract_intents_entities_node,
+    save_extraction_node,
+    auth_policy_evaluator_node
+)
 from src.helpers.config import get_settings
 
 from dotenv import load_dotenv
@@ -22,36 +28,57 @@ if s.LANGCHAIN_API_KEY:
         os.environ["LANGSMITH_ENDPOINT"] = s.LANGCHAIN_ENDPOINT
 
 
-def llm_node(state: State) -> State:
-    llm = ChatOpenAI(model="gpt-4.1-mini", temperature=0.3,api_key=get_settings().OPENAI_API_KEY)
-
-    # pass the conversation to the model
-    resp = llm.invoke(state["messages"])
-
-    # append assistant message
-    state["messages"].append({"role": "assistant", "content": resp.content})
-    return state
-
-
-
 def build_graph():
-    g = StateGraph(State)
+    g = StateGraph(AgentState)
 
-    g.add_node("llm", llm_node)
+    g.add_node("create_case_node", create_case_node)
+    g.add_node("message_writer_node", create_msg_node)
+    g.add_node("extract_intents_entities_node", extract_intents_entities_node)
+    g.add_node("save_extraction_node", save_extraction_node)
+    g.add_node("auth_policy_evaluator_node", auth_policy_evaluator_node)
 
+    g.set_entry_point("create_case_node")
 
-    g.set_entry_point("llm")
-
-    g.add_edge("llm", END)
+    g.add_edge("create_case_node", "message_writer_node")
+    g.add_edge("message_writer_node", "extract_intents_entities_node")
+    g.add_edge("extract_intents_entities_node", "save_extraction_node")
+    g.add_edge("save_extraction_node", "auth_policy_evaluator_node")
+    g.add_edge("save_extraction_node", END)
     return g.compile()
 
 
-if __name__ == "__main__":
-    s = get_settings()
-
+async def main():
     graph = build_graph()
 
-    user_text = input("You: ").strip()
-    out = graph.invoke({"messages": [{"role": "user", "content": user_text}]})
+    email = {  # <-- NO trailing comma
+        "from_email": "customer@example.com",
+        "to_email": "test@younus-alsaadi.de",
+        "subject": "Meter reading",
+        "body": "Hello, my meter reading is 12345. and Can you explain the dynamic tariff?",
+        "direction": "inbound",
+    }
 
-    print("\nAssistant:", out["messages"][-1]["content"])
+    initial_state: AgentState = {
+        "Message": email,
+        "errors": [],
+    }
+
+    # Run once, return final state
+    final_state = await graph.ainvoke(initial_state)
+
+    print("\n=== FINAL STATE ===")
+    print(final_state)
+
+    # Helpful: show errors only
+    if final_state.get("errors"):
+        print("\n=== ERRORS ===")
+        for e in final_state["errors"]:
+            print(e)
+
+
+if __name__ == "__main__":
+    asyncio.run(main())
+
+
+
+
