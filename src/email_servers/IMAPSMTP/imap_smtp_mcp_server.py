@@ -98,8 +98,8 @@ def _parse_email(raw_bytes: bytes) -> Dict[str, Any]:
         "body": get_text_body(msg),
     }
 
-
-def _email_imap_search(mailbox: str = "INBOX", criteria: str = "UNSEEN", limit: int = 10) -> List[str]:
+mcp.tool()
+def email_imap_search(mailbox: str = "INBOX", criteria: str = "UNSEEN", limit: int = 10) -> List[str]:
     """
     Search IMAP mailbox. Returns message UIDs (strings).
     criteria examples: 'UNSEEN', 'ALL', 'FROM "foo@bar.com"', 'SUBJECT "invoice"'
@@ -121,8 +121,8 @@ def _email_imap_search(mailbox: str = "INBOX", criteria: str = "UNSEEN", limit: 
         except Exception:
             pass
 
-
-def _email_imap_get(uid: str, mailbox: str = "INBOX") -> Dict[str, Any]:
+mcp.tool()
+def email_imap_get(uid: str, mailbox: str = "INBOX") -> Dict[str, Any]:
     """Fetch one email by UID and return headers + body text."""
     imap = _imap_login()
     try:
@@ -139,8 +139,8 @@ def _email_imap_get(uid: str, mailbox: str = "INBOX") -> Dict[str, Any]:
         except Exception:
             pass
 
-
-def _email_imap_mark_seen(uid: str, mailbox: str = "INBOX") -> Dict[str, Any]:
+mcp.tool()
+def email_imap_mark_seen(uid: str, mailbox: str = "INBOX") -> Dict[str, Any]:
     """Mark message as seen/read."""
     imap = _imap_login()
     try:
@@ -155,8 +155,8 @@ def _email_imap_mark_seen(uid: str, mailbox: str = "INBOX") -> Dict[str, Any]:
         except Exception:
             pass
 
-
-def _email_smtp_send(
+mcp.tool()
+def email_smtp_send(
     to: str,
     subject: str,
     body: str,
@@ -191,11 +191,6 @@ def _email_smtp_send(
             pass
 
 
-# ---------- MCP TOOL REGISTRATION ----------
-email_imap_search = mcp.tool()(_email_imap_search)
-email_imap_get = mcp.tool()(_email_imap_get)
-email_imap_mark_seen = mcp.tool()(_email_imap_mark_seen)
-email_smtp_send = mcp.tool()(_email_smtp_send)
 
 if __name__ == "__main__":
     mcp.run(transport="http", host="127.0.0.1", port=8000)

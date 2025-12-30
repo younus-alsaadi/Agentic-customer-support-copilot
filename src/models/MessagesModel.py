@@ -1,7 +1,7 @@
 from typing import Optional, List
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import select, desc
 from .BaseDataModel import BaseDataModel
 from .db_schemes import Messages
 
@@ -31,6 +31,19 @@ class MessagesModel(BaseDataModel):
             result = await session.execute(stmt)
             return result.scalar_one_or_none()
 
+    async def get_latest_inbound_message(self, case_id):
+        async with self.db_client() as session:  # session is AsyncSession
+            stmt = (
+                select(Messages)
+                .where(
+                    Messages.case_id == case_id,
+                    Messages.direction == "inbound",
+                )
+                .order_by(desc(Messages.received_at))
+                .limit(1)
+            )
+            result = await session.execute(stmt)
+            return result.scalars().first()
     async def list_messages_by_case(
         self,
         case_uuid: UUID,

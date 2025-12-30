@@ -24,7 +24,7 @@ Cases.case_status="failed" (or stay in "pending_review")
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Literal
 from uuid import UUID
 
@@ -34,16 +34,25 @@ from src.models.CasesModel import CasesModel
 from src.models.DraftsModel import DraftsModel
 from src.models.MessagesModel import MessagesModel
 from src.models.ReviewsModel import ReviewsModel
+from src.email_servers.IMAPSMTP.imap_smtp_mcp_server import email_smtp_send
+from src.models.db_schemes import Reviews, Messages
 
-log = build_logger(level=None)
+import logging
+
+
+log = build_logger(level=logging.DEBUG)
+
 
 ReviewDecision = Literal["approved", "rejected"]
 
+
+
 async def finalize_case_after_review(
         container,
-        case_uuid: UUID,
+        case_id: UUID,
         decision: ReviewDecision,
-        reviewer_email: str = "system@local",  # temporary until build real agent/user
+        reviewer_name: str,
+        reviewer_email: str = "system@local",
         support_from_email: str = "support@local",
         subject: str = "Update on your request",
         edited_customer_reply: Optional[str] = None, # text coming from the human reviewer.
@@ -66,7 +75,7 @@ async def finalize_case_after_review(
     messages_model = await MessagesModel.create_instance(db_client=container.db_client)
     cases_model = await CasesModel.create_instance(db_client=container.db_client)
 
-    draft = await drafts_model.get_draft_by_case_uuid(case_uuid=case_uuid)
+    draft = await drafts_model.get_draft_by_case_uuid(case_uuid=case_id)
 
     if draft is None:
         return {"ok": False, "error": "No draft found for this case."}
@@ -76,21 +85,31 @@ async def finalize_case_after_review(
     if decision == "approved" and not final_reply_text:
         return {"ok": False, "error": "Approved but final reply text is empty."}
 
+    print(f"final_reply_text is {final_reply_text}")
+    print("=" * 20)
+
     # 2) Create review record
-    review = await reviews_model.create_review(payload={
-        "case_id": case_uuid,
-        "draft_id": getattr(draft, "id", None),
-        "reviewer": reviewer_email,
-        "decision": decision,
-        "review_notes": review_notes,
-        "edited_customer_reply": edited_customer_reply,  # optional field if you add it
-        "created_at": datetime.utcnow(),
-        "updated_at": datetime.utcnow(),
-    })
+
+    review_omr = Reviews(
+        case_id= case_id,
+        draft_id=getattr(draft, "id", None),
+        reviewer_email=reviewer_email,
+        reviewer_name=reviewer_name,
+        decision=decision,
+        review_notes=review_notes,
+        edited_customer_reply_draft= edited_customer_reply,
+        created_at= datetime.now(timezone.utc),
+        updated_at= datetime.now(timezone.utc),
+    )
+
+    review = await reviews_model.create_review(review=review_omr)
+
+    print(f"review insert and is  {review}")
+    print("=" * 20)
 
     if decision == "rejected":
         await cases_model.update_case_status_by_uuid(
-            case_uuid=case_uuid,
+            case_uuid=case_id,
             new_status="failed",  # or keep "pending_review"
             status_meta={
                 "stage": "review_rejected",
@@ -101,14 +120,17 @@ async def finalize_case_after_review(
         return {
             "ok": True,
             "decision": "rejected",
-            "case_uuid": str(case_uuid),
+            "case_uuid": str(case_id),
             "case_status": "failed",
             "review_id": str(getattr(review, "id", "")),
         }
 
         # 4) Approved: execute actions
         #    We will execute only actions with status "planned"
-    actions = await actions_model.get_actions_by_case_id(case_id=case_uuid)
+    actions = await actions_model.list_actions_by_case(case_id=case_id)
+
+    print(f"actions got and is  {actions}")
+    print("=" * 20)
     executed_action_ids: List[str] = []
     blocked_action_ids: List[str] = []
 
@@ -116,7 +138,6 @@ async def finalize_case_after_review(
         if getattr(a, "action_status", None) != "planned":
             continue
 
-        # ---- Placeholder execution (replace later with real integrations) ----
         # For now: mark success with a dummy payload
         execution_result = {
             "success": True,
@@ -143,21 +164,39 @@ async def finalize_case_after_review(
     # 5) Create outbound message (final reply)
     # NOTE: i should pass the customer "to_email" into your email API.
     # the Messages table currently doesn't store 'to_email'; i can add it to meta or case meta later.
-    msg = await messages_model.create_message(payload={
-        "message_case_id": case_uuid,
-        "direction": "outbound",
-        "subject": subject,
-        "body": final_reply_text,
-        "from_email": support_from_email,
-        "received_at": datetime.utcnow(),
-    })
 
-    # Here i would call your email API:
-    # await email_client.send(to=customer_email, subject=subject, body=final_reply_text)
+
+    latest_inbound = await messages_model.get_latest_inbound_message(case_id=case_id)
+
+    if latest_inbound is None:
+        return {"ok": False, "error": "No inbound message found; cannot determine customer email."}
+
+    to_email = latest_inbound.from_email  # customer email
+
+    msg_form = Messages(
+        case_id=case_id,
+        direction="outbound",
+        subject=subject if subject.startswith("Re:") else f"Re: {subject}",
+        body=final_reply_text,
+        from_email=support_from_email,
+        to_email=to_email,
+    )
+
+
+
+    msg = await messages_model.create_message(message=msg_form)
+
+    print(f"msg got and is  {msg} and to email is{msg.to_email}")
+    print("=" * 20)
+
+    # Here I would call the email API:
+    res = email_smtp_send(to=to_email, subject=subject, body=final_reply_text)
+    print("email send done and result:", res)
+    print("=" * 20)
 
     # 6) Close the case
     await cases_model.update_case_status_by_uuid(
-        case_uuid=case_uuid,
+        case_uuid=case_id,
         new_status="done",
         status_meta={
             "stage": "case_done",
@@ -171,7 +210,7 @@ async def finalize_case_after_review(
     return {
         "ok": True,
         "decision": "approved",
-        "case_uuid": str(case_uuid),
+        "case_uuid": str(case_id),
         "case_status": "done",
         "review_id": str(getattr(review, "id", "")),
         "outbound_message_id": str(getattr(msg, "message_id", "")),

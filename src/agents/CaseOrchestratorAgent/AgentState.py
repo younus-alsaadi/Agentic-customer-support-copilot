@@ -1,4 +1,4 @@
-from typing import TypedDict, List, Dict, Any
+from typing import TypedDict, List, Dict, Any, Literal, Optional
 from uuid import UUID
 
 
@@ -31,12 +31,42 @@ class ExtractionsState(TypedDict, total=False):
     confidence: float
     created_at: str
 
+class ActionsState(TypedDict, total=False):
+    action_id: str
+    case_id: str
+    action_type:str
+    action_status: Literal["planned", "executed", "blocked", "no_need"]
+    result:Optional[Dict[str, Any]]
+    created_at: str
+    updated_at: str
+
+class DraftsState(TypedDict, total=False):
+    draft_id: str
+    case_id: str
+    customer_reply_draft:str
+    internal_summary:str
+    actions_suggested:List[Dict[str, Any]]
+    created_at: str
+    updated_at: str
+
+class HumanReviewState(TypedDict, total=False):
+    decision: Literal["approved", "rejected"]
+    reviewer_email:str
+    reviewer_name:str
+    support_from_email:str
+    edited_customer_reply:str
+    review_notes:str
+    review_notes:str
+
 
 
 class AgentState(TypedDict):
     Case: CaseState
     Message: Message
     extractions: ExtractionsState
+    actions: List[ActionsState]
+    drafts: DraftsState
+    human_review: HumanReviewState
     auth_intents: List[Dict[str, Any]]
     non_auth_intents: List[Dict[str, Any]]
     errors: List[Dict[str, Any]]

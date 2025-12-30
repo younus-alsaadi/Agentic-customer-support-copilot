@@ -12,6 +12,7 @@ class Messages(BaseModel):
 
     body: str = Literal["inbound", "outbound"]
     from_email: EmailStr
+    to_email: EmailStr
 
     received_at: datetime = Field(default_factory=datetime.utcnow)
 

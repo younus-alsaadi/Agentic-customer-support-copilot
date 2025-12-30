@@ -8,7 +8,10 @@ from src.agents.CaseOrchestratorAgent.nodes import (
     create_msg_node,
     extract_intents_entities_node,
     save_extraction_node,
-    auth_policy_evaluator_node
+    auth_policy_evaluator_node,
+    plan_actions_node,
+    review_finalize_node,
+    human_review_node
 )
 from src.helpers.config import get_settings
 
@@ -36,6 +39,9 @@ def build_graph():
     g.add_node("extract_intents_entities_node", extract_intents_entities_node)
     g.add_node("save_extraction_node", save_extraction_node)
     g.add_node("auth_policy_evaluator_node", auth_policy_evaluator_node)
+    g.add_node("plan_actions_node", plan_actions_node)
+    g.add_node("human_review_node", human_review_node)
+    g.add_node("review_finalize_node", review_finalize_node)
 
     g.set_entry_point("create_case_node")
 
@@ -43,7 +49,12 @@ def build_graph():
     g.add_edge("message_writer_node", "extract_intents_entities_node")
     g.add_edge("extract_intents_entities_node", "save_extraction_node")
     g.add_edge("save_extraction_node", "auth_policy_evaluator_node")
-    g.add_edge("save_extraction_node", END)
+    g.add_edge("auth_policy_evaluator_node","plan_actions_node")
+
+    g.add_edge("plan_actions_node", "human_review_node")
+    g.add_edge("human_review_node", "review_finalize_node")
+    g.add_edge("review_finalize_node", END)
+
     return g.compile()
 
 
@@ -51,10 +62,10 @@ async def main():
     graph = build_graph()
 
     email = {  # <-- NO trailing comma
-        "from_email": "customer@example.com",
+        "from_email": "younis.eng.software@gmail.com",
         "to_email": "test@younus-alsaadi.de",
         "subject": "Meter reading",
-        "body": "Hello, my meter reading is 12345. and Can you explain the dynamic tariff?",
+        "body": "Hello, my meter reading is 12345. and Can you explain the dynamic tariff? Younus AL-Saadi",
         "direction": "inbound",
     }
 

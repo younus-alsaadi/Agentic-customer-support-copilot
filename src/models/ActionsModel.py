@@ -6,6 +6,7 @@ from .BaseDataModel import BaseDataModel
 from .db_schemes import Actions
 
 
+
 class ActionsModel(BaseDataModel):
     def __init__(self, db_client: object):
         super().__init__(db_client=db_client)
@@ -24,6 +25,44 @@ class ActionsModel(BaseDataModel):
             await session.refresh(action)
         return action
 
+
+
+    async def insert_many_actions(
+            self,
+            case_id: UUID,
+            action_specs: List[Dict[str, Any]],
+    ) -> List[Actions]:
+        """
+        Accepts list of dict specs and inserts them as ORM rows.
+        Returns inserted ORM rows.
+        """
+        rows: List[Actions] = []
+        for spec in action_specs or []:
+            action_type = spec.get("action_type")
+            if not action_type:
+                continue
+
+            rows.append(
+                Actions(
+                    case_id=case_id,
+                    action_type=action_type,
+                    action_status=spec.get("action_status", "planned"),
+                    result=spec.get("result"),
+                )
+            )
+
+        if not rows:
+            return []
+
+        async with self.db_client() as session:
+            session.add_all(rows)
+            await session.commit()
+            for r in rows:
+                await session.refresh(r)
+
+        return rows
+
+
     async def get_action_by_id(self, action_id: UUID) -> Optional[Actions]:
         # Fetch a single action by its id. Returns None if not found.
         async with self.db_client() as session:
@@ -33,14 +72,14 @@ class ActionsModel(BaseDataModel):
 
     async def list_actions_by_case(
         self,
-        case_uuid: UUID,
+        case_id: UUID,
         limit: int = 100,
         offset: int = 0,
         newest_first: bool = True,
     ) -> List[Actions]:
         # Get all actions for a case (timeline view).
         async with self.db_client() as session:
-            stmt = select(Actions).where(Actions.case_id == case_uuid)
+            stmt = select(Actions).where(Actions.case_id == case_id)
 
             order_col = Actions.created_at.desc() if newest_first else Actions.created_at.asc()
             stmt = stmt.order_by(order_col).offset(offset).limit(limit)

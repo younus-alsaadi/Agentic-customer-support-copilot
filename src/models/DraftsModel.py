@@ -41,7 +41,7 @@ class DraftsModel(BaseDataModel):
 
     async def upsert_draft_for_case(
         self,
-        case_uuid: UUID,
+        case_id: UUID,
         customer_reply_draft: Optional[str] = None,
         internal_summary: Optional[str] = None,
         actions_suggested: Optional[List[Dict[str, Any]]] = None,
@@ -49,7 +49,7 @@ class DraftsModel(BaseDataModel):
         # Creates the draft for a case if it doesn't exist, otherwise updates it.
         # This is ideal for workflows where you regenerate drafts multiple times.
         async with self.db_client() as session:
-            stmt = select(Drafts).where(Drafts.case_id == case_uuid)
+            stmt = select(Drafts).where(Drafts.case_id == case_id)
             result = await session.execute(stmt)
             draft = result.scalar_one_or_none()
 
@@ -59,7 +59,7 @@ class DraftsModel(BaseDataModel):
                     raise ValueError("customer_reply_draft and internal_summary are required when creating a new draft.")
 
                 draft = Drafts(
-                    case_id=case_uuid,
+                    case_id=case_id,
                     customer_reply_draft=customer_reply_draft,
                     internal_summary=internal_summary,
                     actions_suggested=actions_suggested,

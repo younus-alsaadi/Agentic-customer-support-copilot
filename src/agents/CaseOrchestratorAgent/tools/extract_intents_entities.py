@@ -83,8 +83,8 @@ async def extract_intents_entities(
     # 8) enforce the required keys
     _validate_extraction_schema(parsed)
 
-    print("\n--- LLMs JSON ---")
-    print(json.dumps(parsed, indent=2))
+    log.debug("\n--- LLMs JSON ---")
+    log.debug(json.dumps(parsed, indent=2))
 
     return parsed
 
@@ -176,7 +176,7 @@ async def save_extraction(
 
     try:
         new_extraction = await extraction_model.create_extraction(extraction=extraction_row)
-        print("inser done {}".format(new_extraction))
+        log.debug("inser done {}".format(new_extraction))
     except Exception:
         log.exception("Extraction creation failed")
         raise
@@ -233,7 +233,7 @@ async def main():
     )
 
     llms_intents_entities= await extract_intents_entities(
-        case_uuid=case.case_uuid,
+        case_id=case.case_uuid,
         message_id=msg.message_id,
         from_email=emails[0]["from_email"],
         subject=emails[0]["subject"],

@@ -52,7 +52,7 @@ def plan_actions_from_extracted_intents(
     intents: List[Dict[str, Any]],
     entities: Dict[str, Any],
     auth_status: str,            # "success" | "missing" | "failed"
-    min_confidence: float = 0.60 # safety gate
+    min_confidence: float = 0.60,
 ) -> List[Dict[str, Any]]:
     """
     Returns action_specs:
@@ -88,6 +88,19 @@ def plan_actions_from_extracted_intents(
                 "action_status": "blocked",
                 "result": {
                     "blocked_reason": "low_confidence_intent",
+                    "intent_name": intent_name,
+                    "confidence": confidence,
+                    "reason": reason,
+                },
+            })
+            continue
+
+
+        if auth_status:
+            action_specs.append({
+                "action_type": action_type,
+                "action_status": "no_need",
+                "result": {
                     "intent_name": intent_name,
                     "confidence": confidence,
                     "reason": reason,
@@ -219,13 +232,13 @@ def build_internal_summary(
 
 # ---------- Step E main function ----------
 
-async def step_e_plan_actions_and_create_final_draft(
+async def plan_actions_and_create_final_draft(
     container,
-    case_uuid: UUID,
+    case_id: UUID,
     intents: List[Dict[str, Any]],
     entities: Dict[str, Any],
     topic_keywords: Optional[List[str]],
-    auth_status: str,  # "success" | "missing" | "failed"
+    auth_status: Optional[str],  # "success" | "missing" | "failed" |
 ) -> Dict[str, Any]:
     """
     Step E:
@@ -245,18 +258,9 @@ async def step_e_plan_actions_and_create_final_draft(
         auth_status=auth_status,
     )
 
-    # 2) Store actions (one row per action)
-    action_ids: List[str] = []
-    for spec in action_specs:
-        row = Actions(
-            case_id=case_uuid,
-            action_type=spec["action_type"],
-            action_status=spec["action_status"],
-            result=spec.get("result"),
-            created_at=datetime.utcnow(),
-        )
-        created = await actions_model.create_action(action=row)
-        action_ids.append(str(getattr(created, "id", "")))
+
+    created_actions = await actions_model.insert_many_actions(case_id=case_id,action_specs=action_specs)
+
 
     # 3) Build final draft (template now)
     customer_reply = build_customer_reply_draft(
@@ -273,23 +277,20 @@ async def step_e_plan_actions_and_create_final_draft(
     )
 
     # 4) Upsert Drafts (you should have DraftsModel.upsert_by_case_id)
-    draft = await drafts_model.upsert_by_case_id(
-        case_id=case_uuid,
-        payload={
-            "customer_reply_draft": customer_reply,
-            "internal_summary": internal_summary,
-            "actions_suggested": action_specs,
-            "updated_at": datetime.utcnow(),
-        },
+    draft = await drafts_model.upsert_draft_for_case(
+        case_id=case_id,
+        customer_reply_draft = customer_reply,
+        internal_summary = internal_summary,
+        actions_suggested= action_specs
     )
 
     # 5) Update case to pending_review
     await cases_model.update_case_status_by_uuid(
-        case_uuid=case_uuid,
+        case_uuid=case_id,
         new_status="pending_review",
         status_meta={
             "stage": "final_draft_ready",
-            "action_ids": action_ids,
+            "action_ids":  [str(a.id) for a in created_actions],
             "auth_status": auth_status,
         },
     )
@@ -297,7 +298,7 @@ async def step_e_plan_actions_and_create_final_draft(
     log.info(
         "Step E done",
         extra={
-            "case_uuid": str(case_uuid),
+            "case_uuid": str(case_id),
             "action_count": len(action_specs),
             "draft_id": str(getattr(draft, "id", "")) if draft else None,
         },
@@ -305,11 +306,10 @@ async def step_e_plan_actions_and_create_final_draft(
 
     return {
         "ok": True,
-        "case_uuid": str(case_uuid),
-        "action_ids": action_ids,
-        "draft_id": str(getattr(draft, "id", "")) if draft else None,
+        "case_uuid": str(case_id),
+        "draft":draft,
         "case_status": "pending_review",
-        "actions_suggested": action_specs,
+        "actions_suggested": created_actions,
     }
 
 
