@@ -14,6 +14,8 @@ class Drafts(SQLAlchemyBase):
     customer_reply_draft = Column(String, nullable=False)   # draft email to customer
     internal_summary = Column(String, nullable=False)       # summary for support agent
 
+    draft_type = Column(String, nullable=False)
+
     actions_suggested = Column(JSONB, nullable=True)        # list of suggested actions (JSON)
 
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
@@ -24,13 +26,13 @@ class Drafts(SQLAlchemyBase):
         nullable=False,
     )
 
-    case = relationship("Cases", back_populates="draft")
+    case = relationship("Cases", back_populates="drafts")
     reviews = relationship("Reviews", back_populates="draft")
 
 
     __table_args__ = (
         # Usually one "current" draft per case
-        Index("draft_case_id_uq", "case_id", unique=True),
+        Index("draft_case_id_type_uq", "case_id", "draft_type", unique=True),
 
         # Listing recent drafts quickly
         Index("draft_updated_at_desc_idx", updated_at.desc()),

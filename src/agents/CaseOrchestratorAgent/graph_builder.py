@@ -11,8 +11,12 @@ from src.agents.CaseOrchestratorAgent.nodes import (
     auth_policy_evaluator_node,
     plan_actions_node,
     review_finalize_node,
-    human_review_node
+    human_review_node,
+    auth_session_manager_node,
+    create_or_update_auth_request_draft_node,
+    approve_and_send_auth_request_node,
 )
+from src.agents.CaseOrchestratorAgent.routers import route_after_auth
 from src.helpers.config import get_settings
 
 from dotenv import load_dotenv
@@ -34,26 +38,46 @@ if s.LANGCHAIN_API_KEY:
 def build_graph():
     g = StateGraph(AgentState)
 
+    g.add_node("extract_intents_entities_node", extract_intents_entities_node)
     g.add_node("create_case_node", create_case_node)
     g.add_node("message_writer_node", create_msg_node)
-    g.add_node("extract_intents_entities_node", extract_intents_entities_node)
     g.add_node("save_extraction_node", save_extraction_node)
     g.add_node("auth_policy_evaluator_node", auth_policy_evaluator_node)
     g.add_node("plan_actions_node", plan_actions_node)
     g.add_node("human_review_node", human_review_node)
-    g.add_node("review_finalize_node", review_finalize_node)
+    g.add_node("auth_session_manager_node", auth_session_manager_node)
+    g.add_node("create_or_update_auth_request_draft_node", create_or_update_auth_request_draft_node)
+    g.add_node("approve_and_send_auth_request_node", approve_and_send_auth_request_node)
 
-    g.set_entry_point("create_case_node")
 
+
+    # g.add_node("review_finalize_node", review_finalize_node)
+
+    g.set_entry_point("extract_intents_entities_node")
+
+    g.add_edge("extract_intents_entities_node", "create_case_node")
     g.add_edge("create_case_node", "message_writer_node")
-    g.add_edge("message_writer_node", "extract_intents_entities_node")
-    g.add_edge("extract_intents_entities_node", "save_extraction_node")
+    g.add_edge("message_writer_node", "save_extraction_node")
     g.add_edge("save_extraction_node", "auth_policy_evaluator_node")
-    g.add_edge("auth_policy_evaluator_node","plan_actions_node")
+    g.add_edge("auth_policy_evaluator_node", "auth_session_manager_node")
+    g.add_edge("auth_session_manager_node", "create_or_update_auth_request_draft_node")
+    g.add_edge("create_or_update_auth_request_draft_node", "human_review_node")
+    g.add_edge("human_review_node", "approve_and_send_auth_request_node")
+    g.add_edge("approve_and_send_auth_request_node", END)
 
-    g.add_edge("plan_actions_node", "human_review_node")
-    g.add_edge("human_review_node", "review_finalize_node")
-    g.add_edge("review_finalize_node", END)
+    g.add_conditional_edges(
+        "auth_session_manager_node",
+        route_after_auth,
+        {
+            "plan_actions_node": "plan_actions_node",
+            "create_or_update_auth_request_draft_node": "create_or_update_auth_request_draft_node",
+        },
+    )
+
+
+    # g.add_edge("plan_actions_node", "human_review_node")
+    # g.add_edge("human_review_node", "review_finalize_node")
+    # g.add_edge("review_finalize_node", END)
 
     return g.compile()
 
@@ -61,16 +85,62 @@ def build_graph():
 async def main():
     graph = build_graph()
 
-    email = {  # <-- NO trailing comma
+    email = {
         "from_email": "younis.eng.software@gmail.com",
         "to_email": "test@younus-alsaadi.de",
-        "subject": "Meter reading",
-        "body": "Hello, my meter reading is 12345. and Can you explain the dynamic tariff? Younus AL-Saadi",
+        "subject": "Meter reading + dynamic tariff question",
         "direction": "inbound",
+        "body": """Hello,
+         I'd like to submit my latest electricity meter reading and also ask about your dynamic tariff.
+
+        - Meter number: LB-9876543
+        - Reading date: 25.09.2025
+        - Reading value: 2438 kWh
+    
+        Questions:
+        1) How does your dynamic tariff work?
+        2) Would it make sense for a 2-person household with an induction stove and no EV?
+        3) Do prices change hourly?
+        4) Can I switch any time?
+    
+        I can't find my contract number right now — if you need it, please tell me what I should provide.
+    
+        Thanks a lot,
+        Julia Meyer
+        """,
+    }
+
+    email_reply = {
+        "from_email": "younis.eng.software@gmail.com",
+        "to_email": "test@younus-alsaadi.de",
+        "subject": "Meter reading + dynamic tariff question",
+        "direction": "inbound",
+        "body": """,
+        Hello,
+
+        My postal code: 22201
+        
+        Best regards
+        Younus AL-Saadi
+        
+        On Tue, 30 Dec 2025 at 18:11, <test@younus-alsaadi.de> wrote:
+        Hello,
+        
+        Your case ID: 660eff7c-7f6d-4c37-bc54-cf93a781990a
+        
+        To process your request, we still need the following information to verify your identity:
+        - your contract number
+        
+        Please reply to this email. Also, always include your case ID in your reply or keep it in the email subject.
+        
+        Thank you and kind regards
+
+        Julia Meyer
+        """,
     }
 
     initial_state: AgentState = {
-        "Message": email,
+        "Message": email_reply,
         "errors": [],
     }
 

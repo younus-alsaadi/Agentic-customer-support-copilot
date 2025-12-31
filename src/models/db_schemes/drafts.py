@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field
-from typing import Optional, Dict, Any, List
+from typing import Optional, Dict, Any, List, Literal
 from uuid import UUID, uuid4
 from datetime import datetime
 
@@ -11,6 +11,8 @@ class Drafts(BaseModel):
 
     customer_reply_draft: str = Field(..., min_length=1)  # draft email to the customer
     internal_summary: str = Field(..., min_length=1)      # summary for support agent
+
+    draft_type: str= Literal["public_reply", "auth_request", "sensitive_reply"]
 
     actions_suggested: Optional[List[Dict[str, Any]]] = None  # multiple suggested actions
 

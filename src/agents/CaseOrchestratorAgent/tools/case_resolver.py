@@ -26,7 +26,7 @@ def _normalize_subject(subject: str | None) -> str:
     s = re.sub(r"^(re:|fw:|fwd:)\s*", "", s, flags=re.IGNORECASE).strip()
     return s.lower()
 
-async def case_resolver(container,from_email, subject, body):
+async def case_resolver(container,available_case_uuid,from_email, subject, body):
     """
     Resolve a case for a new inbound email:
     1) If email contains [CASE: uuid] token -> load that case.
@@ -36,13 +36,14 @@ async def case_resolver(container,from_email, subject, body):
 
     case_model = await CasesModel.create_instance(db_client=container.db_client)
 
-    # 1) Strong link: CASE token
-    case_uuid = _extract_case_uuid(subject, body)
-    if case_uuid:
-        case = await case_model.get_case_by_uuid(case_uuid=case_uuid)
+    print(f"available_case_uuid is {available_case_uuid}")
+
+    if available_case_uuid:
+        print(f"look for case uuid in Db {available_case_uuid}")
+        case = await case_model.get_case_by_uuid(case_uuid=available_case_uuid)
         if case:
             return case
-        log.warning(f"CASE token found but case not in DB: {case_uuid}")
+        print(f"CASE token found but case not in DB: {available_case_uuid}")
 
     # 2) Heuristic link: open case by sender (+ subject similarity)
     normalized_subject = _normalize_subject(subject)

@@ -6,5 +6,9 @@ from src.agents.CaseOrchestratorAgent.nodes.auth_policy_evaluator_node import au
 from src.agents.CaseOrchestratorAgent.nodes.plan_actions_node import plan_actions_node
 from src.agents.CaseOrchestratorAgent.nodes.review_finalize_node import human_review_node, review_finalize_node
 
+from src.agents.CaseOrchestratorAgent.nodes.auth_session_manager_node import auth_session_manager_node
+from src.agents.CaseOrchestratorAgent.nodes.create_or_update_auth_request_draft_node import create_or_update_auth_request_draft_node
+from src.agents.CaseOrchestratorAgent.nodes.approve_and_send_auth_request_node import approve_and_send_auth_request_node
+
 
 

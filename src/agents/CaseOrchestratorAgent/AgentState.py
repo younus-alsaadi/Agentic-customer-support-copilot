@@ -12,7 +12,6 @@ class CaseState(TypedDict,total=False):
     case_updated_at:str
 
 class Message(TypedDict, total=False):
-
     case_id: str
     message_id: str
     direction: str
@@ -56,16 +55,25 @@ class HumanReviewState(TypedDict, total=False):
     support_from_email:str
     edited_customer_reply:str
     review_notes:str
-    review_notes:str
 
+class AuthSessionsState(TypedDict, total=False):
+    id: str
+    case_id: str
+    required_fields:Dict[str, Any]
+    provided_fields:Dict[str, Any]
+    auth_status:Literal["missing", "success", "failed"]
+    created_at: str
+    updated_at: str
 
 
 class AgentState(TypedDict):
+    case_id: str
     Case: CaseState
     Message: Message
     extractions: ExtractionsState
     actions: List[ActionsState]
     drafts: DraftsState
+    auth_sessions: AuthSessionsState
     human_review: HumanReviewState
     auth_intents: List[Dict[str, Any]]
     non_auth_intents: List[Dict[str, Any]]

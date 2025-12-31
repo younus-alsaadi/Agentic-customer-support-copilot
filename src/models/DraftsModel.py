@@ -39,6 +39,12 @@ class DraftsModel(BaseDataModel):
             result = await session.execute(stmt)
             return result.scalar_one_or_none()
 
+    async def get_draft_by_case_and_type(self, case_id: UUID, draft_type:str) -> Optional[Drafts]:
+        async with self.db_client() as session:
+            stmt = select(Drafts).where(Drafts.case_id == case_id and Drafts.draft_type == draft_type)
+            result = await session.execute(stmt)
+            return result.scalar_one_or_none()
+
     async def upsert_draft_for_case(
         self,
         case_id: UUID,
@@ -60,6 +66,50 @@ class DraftsModel(BaseDataModel):
 
                 draft = Drafts(
                     case_id=case_id,
+                    customer_reply_draft=customer_reply_draft,
+                    internal_summary=internal_summary,
+                    actions_suggested=actions_suggested,
+                )
+                session.add(draft)
+            else:
+                # For update: patch only provided fields
+                if customer_reply_draft is not None:
+                    draft.customer_reply_draft = customer_reply_draft
+                if internal_summary is not None:
+                    draft.internal_summary = internal_summary
+                if actions_suggested is not None:
+                    draft.actions_suggested = actions_suggested
+
+            await session.commit()
+            await session.refresh(draft)
+            return draft
+
+    async def upsert_draft_for_case_and_type(
+        self,
+        case_id: UUID,
+        draft_type:str,
+        customer_reply_draft: Optional[str] = None,
+        internal_summary: Optional[str] = None,
+        actions_suggested: Optional[List[Dict[str, Any]]] = None,
+    ) -> Drafts:
+        # Creates the draft for a case and type if it doesn't exist, otherwise updates it.
+        # This is ideal for workflows where you regenerate drafts multiple times.
+        async with self.db_client() as session:
+            stmt = select(Drafts).where(
+                Drafts.case_id == case_id,
+                Drafts.draft_type == draft_type
+            )
+            result = await session.execute(stmt)
+            draft = result.scalar_one_or_none()
+
+            if draft is None:
+                # For create: customer_reply_draft and internal_summary must exist
+                if not customer_reply_draft or not internal_summary:
+                    raise ValueError("customer_reply_draft and internal_summary are required when creating a new draft.")
+
+                draft = Drafts(
+                    case_id=case_id,
+                    draft_type=draft_type,
                     customer_reply_draft=customer_reply_draft,
                     internal_summary=internal_summary,
                     actions_suggested=actions_suggested,

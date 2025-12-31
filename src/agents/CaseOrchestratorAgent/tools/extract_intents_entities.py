@@ -10,6 +10,7 @@ from src.models.db_schemes import Extractions
 from src.logs.log import build_logger
 from src.utils.client_deps_container import DependencyContainer
 
+
 log = build_logger(level=logging.DEBUG)
 
 
@@ -19,8 +20,6 @@ from typing import Any, Dict, Optional
 
 async def extract_intents_entities(
     container,
-    case_id: str,
-    message_id: str,
     from_email: str,
     subject: Optional[str],
     body: str,
@@ -49,11 +48,7 @@ async def extract_intents_entities(
     # 3) Build footer (schema + few-shot + task variables)
     footer_prompt = container.template_parser.get_template_from_locales(
         "extract_intents",
-        "footer_prompt",
-        {
-            "case_id": str(case_id),
-            "message_id": str(message_id),
-        },
+        "footer_prompt"
     )
 
     # 4) Chat history: system message only
@@ -79,14 +74,15 @@ async def extract_intents_entities(
 
 
     # parse json
-    parsed = _parse_json_strict(answer)
+    llm_answer = _parse_json_strict(answer)
     # 8) enforce the required keys
-    _validate_extraction_schema(parsed)
+    _validate_extraction_schema(llm_answer)
 
     log.debug("\n--- LLMs JSON ---")
-    log.debug(json.dumps(parsed, indent=2))
+    log.debug(json.dumps(llm_answer, indent=2))
 
-    return parsed
+
+    return llm_answer
 
 
 
@@ -144,6 +140,8 @@ def _validate_extraction_schema(obj: Dict[str, Any]) -> None:
 
 async def save_extraction(
     container,
+    case_id,
+    message_id,
     llm_result
 ) -> Extractions:
 
@@ -152,8 +150,8 @@ async def save_extraction(
             raise ValueError(f"llm_result missing required key: {k}")
 
     # Convert IDs to UUID objects (DB uses UUID type)
-    case_id = UUID(str(llm_result["case_id"]))
-    message_id = UUID(str(llm_result["message_id"]))
+    case_id = UUID(str(case_id))
+    message_id = UUID(str(message_id))
 
 
     intents = llm_result["intents"]

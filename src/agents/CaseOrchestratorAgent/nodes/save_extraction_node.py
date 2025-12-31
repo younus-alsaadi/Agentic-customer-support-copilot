@@ -25,6 +25,10 @@ def _extraction_orm_to_state(msg: "Extractions") -> "ExtractionsState":
 async def save_extraction_node(state: AgentState):
     container = await get_container()
 
+    msg=state.get("Message")
+    message_id=msg.get("message_id")
+    case_id=state.get("case_id")
+
     llm_result = state.get("llm_response_extractions") or {}
     if not isinstance(llm_result, dict) or not llm_result:
         state.setdefault("errors", []).append({"stage": "save_extraction_node", "error": "No llm_result in state"})
@@ -33,8 +37,14 @@ async def save_extraction_node(state: AgentState):
 
     extraction = await save_extraction(
         container = container,
+        message_id=message_id,
+        case_id=case_id,
         llm_result = llm_result,
     )
+    print("=" * 20)
+    print(f"intents is {extraction.intents}")
+    print(f"entities is {extraction.entities}")
+    print("="*20)
 
     if not extraction:
         state.setdefault("errors", []).append(

@@ -6,7 +6,7 @@ from string import Template
 #### System ####
 system_prompt = Template("\n".join([
     "You are an information extraction engine for customer support emails.",
-    "Your task: extract intents and entities from the customer's message.",
+    "Your task: extract case id (only if is available) intents and entities from the customer's message.",
     "Return ONLY a single valid JSON object that matches the schema exactly.",
     "No markdown. No explanation. No extra keys. No surrounding text.",
     "",
@@ -19,6 +19,7 @@ system_prompt = Template("\n".join([
     "- requires_auth=true for sensitive intents (meter reading actions, contract issues, personal data changes).",
     "- reason must be short (max 15 words).",
     "- notes_for_agent must be short (max 20 words) or empty string.",
+    "- if you find case id, store return in the answer "
 ]))
 
 #### Document (the email content) ####
@@ -76,10 +77,8 @@ footer_prompt = Template("\n".join([
     "FEW-SHOT EXAMPLES (learn format; do not copy values):",
     "",
     "Example 1 INPUT:",
-    'case_id="11111111-1111-1111-1111-111111111111"',
-    'message_id="aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"',
-    'subject="Zählerstand übermitteln"',
-    'body="Hallo, Zählernummer LB-9876543. Zählerstand 12456 am 2025-12-20. Danke."',
+    'subject="Re: Zählerstand übermitteln"',
+    'body="Hello, meter number LB-9876543. Meter reading 12456 on 2025-12-20, case_number is 11111111-1111-1111-1111-111111111111. Thank you."',
     "Example 1 OUTPUT:",
     "{",
     '  "case_id": "11111111-1111-1111-1111-111111111111",',
@@ -113,9 +112,9 @@ footer_prompt = Template("\n".join([
     "}",
     "",
     "Example 2 INPUT:",
-    'case_id="22222222-2222-2222-2222-222222222222"',
-    'message_id="bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"',
-    'subject="Re: Dynamic Tarif"',
+    'case_id=None',
+
+    'subject="Dynamic Tarif"',
     'body="Hi, can you explain how dynamic pricing works and if there is a minimum term?"',
     "Example 2 OUTPUT:",
     "{",
@@ -150,7 +149,5 @@ footer_prompt = Template("\n".join([
     "}",
     "",
     "NOW EXTRACT FOR THIS MESSAGE (fill schema with real values):",
-    "case_id: $case_id",
-    "message_id: $message_id",
     "Return ONLY the JSON object.",
 ]))

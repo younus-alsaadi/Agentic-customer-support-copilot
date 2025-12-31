@@ -32,10 +32,10 @@ class AuthSessionsModel(BaseDataModel):
             result = await session.execute(stmt)
             return result.scalar_one_or_none()
 
-    async def get_auth_session_by_case_uuid(self, case_uuid: UUID) -> Optional[AuthSessions]:
+    async def get_auth_session_by_case_id(self, case_id: UUID) -> Optional[AuthSessions]:
         # Fetch the auth session for a given case (one-to-one).
         async with self.db_client() as session:
-            stmt = select(AuthSessions).where(AuthSessions.case_id == case_uuid)
+            stmt = select(AuthSessions).where(AuthSessions.case_id == case_id)
             result = await session.execute(stmt)
             return result.scalar_one_or_none()
 

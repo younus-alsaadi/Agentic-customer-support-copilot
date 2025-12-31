@@ -22,6 +22,7 @@ async def create_case_node(state: AgentState)-> AgentState:
     from_email = msg.get("from_email")
     subject = msg.get("subject")
     body = msg.get("body")
+    case_uid = state.get("case_id")
 
     if not (from_email and not (body is None)):
         # fail fast: message missing required fields
@@ -30,7 +31,7 @@ async def create_case_node(state: AgentState)-> AgentState:
         # optionally set a failure status if you already have a case
         return state
 
-    case_orm = await case_resolver(container, from_email, subject, body)
+    case_orm = await case_resolver(container,case_uid, from_email, subject, body)
 
     if not case_orm:
         state["errors"] = state.get("errors", [])
@@ -39,6 +40,7 @@ async def create_case_node(state: AgentState)-> AgentState:
 
     case_state = _case_orm_to_state(case_orm)
     state["Case"] = case_state
+    state["case_id"] = case_orm.case_uuid
 
     state["Message"]["case_id"] = case_state["case_uuid"]
 

@@ -27,7 +27,8 @@ class Cases(SQLAlchemyBase):
     reviews = relationship("Reviews", back_populates="case", cascade="all, delete-orphan")
 
     auth_session = relationship("AuthSessions", back_populates="case", uselist=False, cascade="all, delete-orphan")
-    draft = relationship("Drafts", back_populates="case", uselist=False, cascade="all, delete-orphan")
+
+    drafts = relationship("Drafts", back_populates="case", cascade="all, delete-orphan")
 
     __table_args__ = (
         Index("cases_status_idx", "case_status"),
