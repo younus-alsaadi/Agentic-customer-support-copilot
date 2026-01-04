@@ -59,13 +59,20 @@ async def extract_intents_entities(
         )
     ]
 
+    log.debug(f"chat_history is {chat_history}")
+    log.debug("="*20)
+
     # 5) Full prompt: doc + footer
     full_prompt = "\n\n".join([document_prompt, footer_prompt])
 
+    log.debug(f"Full prompt: is {full_prompt}")
+    log.debug("=" * 20)
+
     # 6) Generate
-    answer, total_tokens, cost =container.generation_client.generate_text(
-        prompt=full_prompt,
-        chat_history=chat_history,
+    answer, total_tokens, cost = await asyncio.to_thread(
+        container.generation_client.generate_text,
+        full_prompt,
+        chat_history,
     )
 
 

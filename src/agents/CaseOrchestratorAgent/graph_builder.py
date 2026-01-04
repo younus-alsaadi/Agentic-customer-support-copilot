@@ -51,7 +51,7 @@ def build_graph():
 
 
 
-    # g.add_node("review_finalize_node", review_finalize_node)
+    g.add_node("review_finalize_node", review_finalize_node)
 
     g.set_entry_point("extract_intents_entities_node")
 
@@ -74,7 +74,11 @@ def build_graph():
         },
     )
 
-
+    # g.add_edge("plan_actions_node", "human_review_node")
+    # g.add_edge("human_review_node", "review_finalize_node")
+    #
+    # g.add_edge("auth_policy_evaluator_node", "plan_actions_node")
+    #
     # g.add_edge("plan_actions_node", "human_review_node")
     # g.add_edge("human_review_node", "review_finalize_node")
     # g.add_edge("review_finalize_node", END)
@@ -106,7 +110,7 @@ async def main():
         I can't find my contract number right now — if you need it, please tell me what I should provide.
     
         Thanks a lot,
-        Julia Meyer
+        Jon Candy
         """,
     }
 
@@ -118,24 +122,23 @@ async def main():
         "body": """,
         Hello,
 
-        My postal code: 22201
+        My postal number, is 22201
         
         Best regards
         Younus AL-Saadi
         
         On Tue, 30 Dec 2025 at 18:11, <test@younus-alsaadi.de> wrote:
-        Hello,
+        Postal code,
         
-        Your case ID: 660eff7c-7f6d-4c37-bc54-cf93a781990a
+        I am the AI customer support assistant handling your case. To proceed with your request, we kindly ask you to provide the following information to verify your identity:
+        - Contract number
         
-        To process your request, we still need the following information to verify your identity:
-        - your contract number
-        
-        Please reply to this email. Also, always include your case ID in your reply or keep it in the email subject.
-        
-        Thank you and kind regards
+        Please reply to this email with the requested details and ensure the case ID ed217587-c412-4a99-9ae8-e87a0694bf9a remains in the subject line.
 
-        Julia Meyer
+        Thank you for your cooperation.
+
+        Best regards,
+        Customer Support Team
         """,
     }
 

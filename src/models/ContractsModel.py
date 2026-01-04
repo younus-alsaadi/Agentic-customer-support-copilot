@@ -51,30 +51,44 @@ class ContractsModel(BaseDataModel):
             return result.scalars().all()
 
     async def verify_identity(
-        self,
-        contract_number: str,
-        postal_code: Optional[str] = None,
-        birthday: Optional[date] = None,
-        full_name: Optional[str] = None,
-    ) -> Optional[Contracts]:
-        # Identity check for auth: find contract by contract_number and verify extra fields.
-        # Returns the contract if it matches, otherwise None.
+            self,
+            contract_number: str,
+            postal_code: Optional[str] = None,
+            birthday: Optional[date] = None,
+            full_name: Optional[str] = None,
+    ):
+        print(f"[AUTH] user.contract_number = {contract_number}")
+        print(f"[AUTH] user.postal_code    = {postal_code}")
+        print(f"[AUTH] user.birthday       = {birthday}")
+        print(f"[AUTH] user.full_name      = {full_name}")
+
         async with self.db_client() as session:
             stmt = select(Contracts).where(Contracts.contract_number == contract_number)
             result = await session.execute(stmt)
             contract = result.scalar_one_or_none()
 
+            print(f"[AUTH] DB contract object = {contract}")
+
             if contract is None:
+                print("[AUTH] No contract matched this contract_number")
                 return None
 
-            # Check provided factors (only compare if user provided them)
+            print(f"[AUTH] DB.contract_number = {contract.contract_number}")
+            print(f"[AUTH] DB.postal_code     = {contract.postal_code}")
+            print(f"[AUTH] DB.birthday        = {contract.birthday}")
+            print(f"[AUTH] DB.full_name       = {contract.full_name}")
+
             if postal_code is not None and contract.postal_code != postal_code:
+                print("[AUTH] postal_code mismatch")
                 return None
             if birthday is not None and contract.birthday != birthday:
+                print("[AUTH] birthday mismatch")
                 return None
             if full_name is not None and contract.full_name != full_name:
+                print("[AUTH] full_name mismatch")
                 return None
 
+            print("[AUTH] verified ✅")
             return contract
 
     async def find_by_postal_code(

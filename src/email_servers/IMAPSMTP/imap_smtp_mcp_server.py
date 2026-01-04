@@ -1,17 +1,20 @@
 from __future__ import annotations
-
-import os
 import ssl
 import imaplib
 import smtplib
 from email.message import EmailMessage
 from email import policy
 from email.parser import BytesParser
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
 from fastmcp import FastMCP
 
 from src.helpers.config import get_settings
+
+from langsmith import trace
+from typing import Optional, Dict, Any
+
+
 
 mcp = FastMCP("IMAP_SMTP_Mail")
 
@@ -29,7 +32,6 @@ def _cfg() -> Dict[str, Any]:
     env_settings = get_settings()
 
     print(env_settings.EMAIL_PASS)
-
 
     return {
         "user": env_settings.EMAIL_USER,
@@ -124,24 +126,32 @@ def email_imap_search(mailbox: str = "INBOX", criteria: str = "UNSEEN", limit: i
 mcp.tool()
 def email_imap_get(uid: str, mailbox: str = "INBOX") -> Dict[str, Any]:
     """Fetch one email by UID and return headers + body text."""
-    imap = _imap_login()
-    try:
-        imap.select(mailbox)
-        typ, data = imap.uid("fetch", uid, "(RFC822)")
-        if typ != "OK" or not data or not data[0]:
-            raise RuntimeError(f"IMAP fetch failed: {typ} {data}")
-
-        raw = data[0][1]
-        return {"uid": uid, **_parse_email(raw)}
-    finally:
+    with trace(
+        name="email_imap_get",
+        run_type="tool",
+        tags=["tool:mcp", "channel:email", "protocol:imap"],
+        metadata={"mailbox": mailbox, "mcp_server": "IMAP_SMTP_Mail"},
+    ) as run:
+        imap = _imap_login()
         try:
-            imap.logout()
-        except Exception:
-            pass
+            imap.select(mailbox)
+            typ, data = imap.uid("fetch", uid, "(RFC822)")
+            if typ != "OK" or not data or not data[0]:
+                raise RuntimeError(f"IMAP fetch failed: {typ} {data}")
+            raw = data[0][1]
+            out = {"uid": uid, **_parse_email(raw)}
+            run.end(outputs={"result": out})
+            return out
+        finally:
+            try:
+                imap.logout()
+            except Exception:
+                pass
 
 mcp.tool()
 def email_imap_mark_seen(uid: str, mailbox: str = "INBOX") -> Dict[str, Any]:
     """Mark message as seen/read."""
+
     imap = _imap_login()
     try:
         imap.select(mailbox)
@@ -155,7 +165,10 @@ def email_imap_mark_seen(uid: str, mailbox: str = "INBOX") -> Dict[str, Any]:
         except Exception:
             pass
 
-mcp.tool()
+
+
+
+@mcp.tool()
 def email_smtp_send(
     to: str,
     subject: str,
@@ -163,32 +176,68 @@ def email_smtp_send(
     cc: Optional[str] = None,
     bcc: Optional[str] = None,
 ) -> Dict[str, Any]:
-    """Send an email via SMTP."""
-    cfg = _cfg()
+    """Send an email via SMTP (LangSmith traced MCP tool)."""
 
-    msg = EmailMessage()
-    msg["From"] = cfg["user"]
-    msg["To"] = to
-    msg["Subject"] = subject
-    if cc:
-        msg["Cc"] = cc
-    msg.set_content(body)
+    with trace(
+        name="mcp.email_smtp_send",
+        run_type="tool",
+        tags=[
+            "tool:mcp",
+            "protocol:smtp",
+            "channel:email",
+        ],
+        metadata={
+            "to": to,
+            "cc": cc,
+            "bcc": bcc,
+            "mcp_server": "IMAP_SMTP_Mail",
+        },
+    ) as run:
 
-    recipients = [to]
-    if cc:
-        recipients += [x.strip() for x in cc.split(",") if x.strip()]
-    if bcc:
-        recipients += [x.strip() for x in bcc.split(",") if x.strip()]
+        cfg = _cfg()
 
-    smtp = _smtp_login()
-    try:
-        smtp.send_message(msg, from_addr=cfg["user"], to_addrs=recipients)
-        return {"status": "sent", "to": recipients}
-    finally:
+        msg = EmailMessage()
+        msg["From"] = cfg["user"]
+        msg["To"] = to
+        msg["Subject"] = subject
+        if cc:
+            msg["Cc"] = cc
+        msg.set_content(body)
+
+        recipients = [to]
+        if cc:
+            recipients += [x.strip() for x in cc.split(",") if x.strip()]
+        if bcc:
+            recipients += [x.strip() for x in bcc.split(",") if x.strip()]
+
+        smtp = _smtp_login()
         try:
-            smtp.quit()
-        except Exception:
-            pass
+            smtp.send_message(
+                msg,
+                from_addr=cfg["user"],
+                to_addrs=recipients,
+            )
+
+            result = {
+                "status": "sent",
+                "to": recipients,
+            }
+
+            # this makes outputs visible in LangSmith UI
+            run.end(outputs=result)
+            return result
+
+        except Exception as e:
+            # errors show clearly in LangSmith
+            run.end(error=str(e))
+            raise
+
+        finally:
+            try:
+                smtp.quit()
+            except Exception:
+                pass
+
 
 
 

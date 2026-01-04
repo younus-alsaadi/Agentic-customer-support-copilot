@@ -1,17 +1,17 @@
 from __future__ import annotations
 
+import asyncio
 from datetime import datetime, timezone
-from typing import List, Dict, Any, Optional
 from uuid import UUID
-
-from src.email_servers.IMAPSMTP.imap_smtp_mcp_server import email_smtp_send
+from src.agents.CaseOrchestratorAgent.utils.mcp_tools_provider import MCPToolsProvider
 from src.models.CasesModel import CasesModel
 from src.models.DraftsModel import DraftsModel
 from src.models.MessagesModel import MessagesModel
 from src.models.ReviewsModel import ReviewsModel
-
 from src.models.db_schemes import Messages, Reviews as ReviewsORM
 
+import json
+from typing import Any, Dict, Optional, Tuple, List
 
 DRAFT_TYPE_AUTH = "auth_request"
 
@@ -24,13 +24,75 @@ _FIELD_LABELS = {
     "address": "your address",
 }
 
+
+
+
+def _parse_llm_email_json(answer: str) -> Optional[Tuple[str, str]]:
+    """
+    Parse LLM output that MUST be exactly:
+
+    {
+      "subject": "string",
+      "body": "string"
+    }
+
+    Returns:
+        (subject, body) if valid
+        None if invalid in ANY way
+    """
+
+    if not answer or not isinstance(answer, str):
+        return None
+
+    text = answer.strip()
+
+    # Reject markdown / code fences
+    if text.startswith("```") or text.endswith("```"):
+        return None
+
+    def _load_strict(s: str) -> Optional[Tuple[str, str]]:
+        try:
+            obj = json.loads(s)
+        except Exception:
+            return None
+
+        if not isinstance(obj, dict):
+            return None
+
+        # Must contain EXACTLY these keys
+        if set(obj.keys()) != {"subject", "body"}:
+            return None
+
+        subject = obj.get("subject")
+        body = obj.get("body")
+
+        if not isinstance(subject, str) or not subject.strip():
+            return None
+        if not isinstance(body, str) or not body.strip():
+            return None
+
+        return subject.strip(), body.strip()
+
+    # 1) Try direct parse
+    parsed = _load_strict(text)
+    if parsed:
+        return parsed
+
+    # 2) Salvage: extract single JSON object if wrapped in text
+    start = text.find("{")
+    end = text.rfind("}")
+    if start != -1 and end != -1 and end > start:
+        return _load_strict(text[start : end + 1])
+
+    return None
+
 def _pretty_field(f: str) -> str:
     return _FIELD_LABELS.get(f, f)
 
 def _build_auth_request_draft(case_id: str, missing_fields: List[str]) -> str:
     bullets = "\n".join([f"- {_pretty_field(f)}" for f in missing_fields])
     return (
-        "Hello,\n\n"
+        "Moin,\n\n"
         f"Your case ID: {case_id}\n\n"
         "To process your request, we still need the following information to verify your identity:\n"
         f"{bullets}\n\n"
@@ -85,12 +147,65 @@ async def create_or_update_auth_request_draft(
         return {"ok": False, "error": "No missing fields. Auth request draft not needed."}
 
     customer_reply = _build_auth_request_draft(case_id=case_uuid, missing_fields=missing_fields)
+
+    # 1) Load templates
+    system_prompt = container.template_parser.get_template_from_locales(
+        "send_auth_email", "system_prompt"
+    )
+
+    # 2) Build document prompt (email content)
+    parms_prompt = container.template_parser.get_template_from_locales(
+        "send_auth_email",
+        "parms_prompt",
+        {
+            "case_id": case_uuid,
+            "topic":"auth request",
+            "missing_fields": missing_fields,
+            "auth_body_template" : customer_reply
+        },
+    )
+
+    # 3) Build footer (schema + few-shot + task variables)
+    footer_prompt = container.template_parser.get_template_from_locales(
+        "send_auth_email",
+        "footer_prompt"
+    )
+
+
+    chat_history = [
+        container.generation_client.construct_prompt(
+            prompt=system_prompt,
+            role=container.generation_client.enums.SYSTEM.value,
+        )
+    ]
+
+    full_prompt = "\n\n".join([parms_prompt, footer_prompt])
+
+    answer, total_tokens, cost = await asyncio.to_thread(
+        container.generation_client.generate_text,
+        full_prompt,
+        chat_history,
+    )
+    print(f"chat_history is {chat_history}")
+    print(f"cost is {cost}")
+
+    print(f"email from LLm is {answer}")
+    print("===============")
+
+    subject_body = _parse_llm_email_json(answer)  # Optional[Tuple[str, str]] -> (subject, body)
+
+    if subject_body is None:
+        subject = f"Re: auth request [CASE: {case_uuid}]"
+        body = customer_reply
+    else:
+        subject, body = subject_body
+
     internal_summary = _build_internal_summary(required_fields, missing_fields, provided_fields)
 
     draft = await drafts_model.upsert_draft_for_case_and_type(
         case_id=case_uuid,
         draft_type=DRAFT_TYPE_AUTH,
-        customer_reply_draft=customer_reply,
+        customer_reply_draft=body,
         internal_summary=internal_summary,
         actions_suggested=[],
     )
@@ -150,11 +265,12 @@ async def approve_and_send_auth_request(
 
     draft = await drafts_model.get_draft_by_case_and_type(case_id=case_uuid, draft_type=DRAFT_TYPE_AUTH)
 
-
     if draft is None:
         return {"ok": False, "error": f"No draft found for this case (type={DRAFT_TYPE_AUTH})."}
 
     body_text = (getattr(draft, "customer_reply_draft", "") or "").strip()
+
+
     if not body_text:
         return {"ok": False, "error": "Draft is empty."}
 
@@ -204,8 +320,23 @@ async def approve_and_send_auth_request(
     # 5) Send email via SMTP
     # If your email_smtp_send supports from_email, pass it. Otherwise keep minimal.
     try:
+        mcp_tools = MCPToolsProvider(
+            name="mail",
+            url="http://127.0.0.1:8000/mcp",
+            transport="http",
+        )
+
         final_subject = subject if subject.lower().startswith("re:") else f"Re: {subject}"
-        res = email_smtp_send(to=to_email, subject=final_subject, body=body_text)
+
+        res = await mcp_tools.ainvoke_tool(
+            "email_smtp_send",
+            {
+                "to": to_email,
+                "subject": final_subject,
+                "body": body_text,
+            },
+        )
+
         print("email send done and result:", res)
     except Exception as e:
         # If sending fails, do NOT claim waiting_customer
@@ -213,6 +344,7 @@ async def approve_and_send_auth_request(
         case = await cases_model.get_case_by_uuid(case_uuid)
         meta = dict((case.case_status_meta or {}))
         meta.update({"stage": "auth_request_send_failed", "error": str(e)})
+        print(f"can not send email cause error, {str(e)}")
 
         await cases_model.update_case_status_by_uuid(
             case_uuid=case_uuid,

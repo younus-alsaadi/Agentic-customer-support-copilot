@@ -276,7 +276,7 @@ async def plan_actions_and_create_final_draft(
         auth_status=auth_status,
     )
 
-    # 4) Upsert Drafts (you should have DraftsModel.upsert_by_case_id)
+    # 4) Upsert Drafts
     draft = await drafts_model.upsert_draft_for_case(
         case_id=case_id,
         customer_reply_draft = customer_reply,

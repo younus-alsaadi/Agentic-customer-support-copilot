@@ -47,7 +47,6 @@ async def plan_actions_node(state: AgentState)->AgentState:
     topic_keywords = entities.get("topic_keywords")
 
 
-
     result = await plan_actions_and_create_final_draft(
         container=container,
         case_id=case_id,

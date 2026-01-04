@@ -10,6 +10,14 @@ from src.utils.pii_safe import hash_field, mask_value
 
 MAX_AUTH_ATTEMPTS = 3  # tune
 
+DEFAULT_REQUIRED_FIELDS = ["contract_number", "postal_code"]
+
+REQUIRED_FIELDS_BY_INTENT = {
+    "MeterReadingSubmission": ["contract_number", "postal_code"],
+    "ChangeAddress": ["contract_number", "postal_code", "birthday"],
+    "BankDetailsChange": ["contract_number", "postal_code", "birthday"],
+}
+
 
 def _is_empty(v: Any) -> bool:
     return v is None or v == "" or v == {} or v == "null"
@@ -32,13 +40,7 @@ def _safe_masked(val: Optional[str]) -> str:
         return "<missing>"
     return mask_value(val)
 
-DEFAULT_REQUIRED_FIELDS = ["contract_number", "postal_code"]
 
-REQUIRED_FIELDS_BY_INTENT = {
-    "MeterReadingSubmission": ["contract_number", "postal_code"],
-    "ChangeAddress": ["contract_number", "postal_code", "birthday"],
-    "BankDetailsChange": ["contract_number", "postal_code", "birthday"],
-}
 
 def derive_required_fields(auth_intents: List[Dict[str, Any]]) -> List[str]:
     names = []
@@ -54,6 +56,10 @@ def derive_required_fields(auth_intents: List[Dict[str, Any]]) -> List[str]:
         out.update(DEFAULT_REQUIRED_FIELDS)
 
     return list(out)
+
+
+
+
 
 
 async def auth_session_manager(
@@ -133,29 +139,41 @@ async def auth_session_manager(
     print("[AUTH] IDENTITY_KEYS whitelist:", IDENTITY_KEYS)
     print("=" * 20)
 
-    # Build accumulated identity input:
-    accumulated: Dict[str, Any] = {}
-    if existing and existing.provided_fields:
-        accumulated.update(existing.provided_fields)
-        print("[AUTH] accumulated starts from existing.provided_fields")
-        print("=" * 20)
+    stored_fields: Dict[str, Any] = (
+        dict(existing.provided_fields) if (existing and existing.provided_fields) else {}
+    )
 
-    for k in IDENTITY_KEYS:
-        if k in entities and not _is_empty(entities.get(k)):
-            accumulated[k] = entities.get(k)
-            print(f"[AUTH] accumulated updated from entities: {k} = {_safe_masked(_safe_str(entities.get(k)))}")
-            print("=" * 20)
 
-    print("[AUTH] accumulated identity input (raw mix):", accumulated)
+    def _get_hash_prefer_new(key: str) -> Optional[str]:
+        # 1) If user provided new raw value -> hash it (NEW wins)
+        if key in entities and not _is_empty(entities.get(key)):
+            raw = _safe_str(entities.get(key))
+            return _safe_hash(raw, salt) if raw else None
+
+        # 2) Else reuse stored hash
+        v = stored_fields.get(key)
+        if isinstance(v, dict):
+            h = v.get("hash")
+            if isinstance(h, str) and h:
+                return h
+        return None
+
+    accumulated_hashes: Dict[str, Optional[str]] = {
+        "contract_number": _get_hash_prefer_new("contract_number"),
+        "postal_code": _get_hash_prefer_new("postal_code") if "postal_code" in required_fields else None,
+        "birthday": _get_hash_prefer_new("birthday") if "birthday" in required_fields else None,
+    }
+    print("[AUTH] accumulated_hashes (for verification):", {
+        k: ("<yes>" if v else "<no>") for k, v in accumulated_hashes.items()
+    })
     print("=" * 20)
 
-    # Compute missing based on accumulated
     missing_fields: List[str] = []
     for f in required_fields:
-        if _is_empty(accumulated.get(f)):
+        if not accumulated_hashes.get(f):
             missing_fields.append(f)
 
-    print("[AUTH] missing_fields (based on accumulated):", missing_fields)
+    print("[AUTH] missing_fields (based on hashes):", missing_fields)
     print("=" * 20)
 
     auth_status: str = "missing"
@@ -171,19 +189,9 @@ async def auth_session_manager(
         print("[AUTH] Have all required fields -> verifying against Contracts...")
         print("=" * 20)
 
-        contract_number = _safe_str(accumulated.get("contract_number"))
-        postal_code = _safe_str(accumulated.get("postal_code")) if "postal_code" in required_fields else None
-        birthday = _safe_str(accumulated.get("birthday")) if "birthday" in required_fields else None
-
-        print("[AUTH] verify input (masked):")
-        print("       contract_number:", _safe_masked(contract_number))
-        print("       postal_code:", _safe_masked(postal_code))
-        print("       birthday:", _safe_masked(birthday))
-        print("=" * 20)
-
-        contract_hash = _safe_hash(contract_number, salt)
-        postal_hash = _safe_hash(postal_code, salt)
-        birthday_hash = _safe_hash(birthday, salt) if "birthday" in required_fields else None
+        contract_hash = accumulated_hashes.get("contract_number")
+        postal_hash = accumulated_hashes.get("postal_code") if "postal_code" in required_fields else None
+        birthday_hash = accumulated_hashes.get("birthday") if "birthday" in required_fields else None
 
         print("[AUTH] verify input (hash present?):")
         print("       contract_hash:", "<yes>" if contract_hash else "<no>")
@@ -194,7 +202,7 @@ async def auth_session_manager(
         verified_contract = await contracts_model.verify_identity(
             contract_number=contract_hash,
             postal_code=postal_hash,
-            birthday=birthday_hash,  # Contracts must store same hashed form
+            birthday=birthday_hash,
         )
 
         if verified_contract:
@@ -212,19 +220,19 @@ async def auth_session_manager(
     # Store safe fields in AuthSessions: only identity info, hashed + masked
     safe_provided: Dict[str, Any] = {}
 
-    cn = _safe_str(accumulated.get("contract_number"))
-    if cn:
-        safe_provided["contract_number"] = {"hash": _safe_hash(cn, salt), "masked": mask_value(cn)}
+    if "contract_number" in entities and not _is_empty(entities.get("contract_number")):
+        cn_raw = _safe_str(entities.get("contract_number"))
+        safe_provided["contract_number"] = {"hash": _safe_hash(cn_raw, salt), "masked": mask_value(cn_raw)}
 
-    pc = _safe_str(accumulated.get("postal_code"))
-    if pc:
-        safe_provided["postal_code"] = {"hash": _safe_hash(pc, salt), "masked": mask_value(pc)}
+    if "postal_code" in entities and not _is_empty(entities.get("postal_code")):
+        pc_raw = _safe_str(entities.get("postal_code"))
+        safe_provided["postal_code"] = {"hash": _safe_hash(pc_raw, salt), "masked": mask_value(pc_raw)}
 
-    bd = _safe_str(accumulated.get("birthday"))
-    if bd:
-        safe_provided["birthday"] = {"hash": _safe_hash(bd, salt), "masked": mask_value(bd)}
+    if "birthday" in entities and not _is_empty(entities.get("birthday")):
+        bd_raw = _safe_str(entities.get("birthday"))
+        safe_provided["birthday"] = {"hash": _safe_hash(bd_raw, salt), "masked": mask_value(bd_raw)}
 
-    print("[AUTH] safe_provided to store:", safe_provided)
+    print("[AUTH] safe_provided to store (new inputs only):", safe_provided)
     print("=" * 20)
 
     # Merge with existing safe fields (so we keep previously stored hashes)
