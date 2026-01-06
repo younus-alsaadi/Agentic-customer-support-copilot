@@ -92,21 +92,12 @@ async def review_finalize_node(state:AgentState)->AgentState:
         reviewer_email=reviewer_email,
         reviewer_name = reviewer_name,
         support_from_email=support_from_email,
-        subject=subject,
         edited_customer_reply=edited_customer_reply,
         review_notes=review_notes,
-
 
     )
 
     print("final result:", final_result)
     print("=" * 20)
 
-    return state
-
-
-
-
-
-
-
+    return {"final result": final_result}

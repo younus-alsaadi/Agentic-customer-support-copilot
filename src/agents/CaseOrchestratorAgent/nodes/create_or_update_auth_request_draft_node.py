@@ -48,6 +48,6 @@ async def create_or_update_auth_request_draft_node(state: AgentState) -> AgentSt
     print("result of create_or_update_auth_request_draft", result)
     print("=" * 20)
 
-    return state
+    return {"auth_request_draft_result": result}
 
 

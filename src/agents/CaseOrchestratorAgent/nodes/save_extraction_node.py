@@ -51,5 +51,4 @@ async def save_extraction_node(state: AgentState):
             {"stage": "save_extraction_node", "error": "save_extraction returned None"})
         return state
 
-    state["extractions"] = _extraction_orm_to_state(extraction)
-    return state
+    return {"extractions":_extraction_orm_to_state(extraction)}

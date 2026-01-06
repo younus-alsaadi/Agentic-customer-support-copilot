@@ -39,9 +39,14 @@ async def create_case_node(state: AgentState)-> AgentState:
         return state
 
     case_state = _case_orm_to_state(case_orm)
-    state["Case"] = case_state
-    state["case_id"] = case_orm.case_uuid
 
-    state["Message"]["case_id"] = case_state["case_uuid"]
+    # update Message safely (copy)
+    new_msg = dict(msg)
+    new_msg["case_id"] = case_state["case_uuid"]
 
-    return state
+    update: AgentState = {
+        "Case": case_state,
+        "case_id": case_state["case_uuid"],  # IMPORTANT: set once here
+        "Message": new_msg,
+    }
+    return update

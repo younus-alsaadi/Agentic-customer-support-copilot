@@ -1,4 +1,5 @@
-from typing import TypedDict, List, Dict, Any, Literal, Optional
+import operator
+from typing import TypedDict, List, Dict, Any, Literal, Optional, Annotated
 from uuid import UUID
 
 
@@ -71,11 +72,17 @@ class AgentState(TypedDict):
     Case: CaseState
     Message: Message
     extractions: ExtractionsState
-    actions: List[ActionsState]
-    drafts: DraftsState
+    actions: Annotated[List[ActionsState], operator.add]
+    drafts: Annotated[List[DraftsState], operator.add]
     auth_sessions: AuthSessionsState
     human_review: HumanReviewState
     auth_intents: List[Dict[str, Any]]
     non_auth_intents: List[Dict[str, Any]]
+    non_auth_plan_result:Dict[str, Any]
+    auth_plan_result: Dict[str, Any]
+    non_auth_done: bool
+    auth_done: bool
+    join_ready: bool
+    joined_once: bool
     errors: List[Dict[str, Any]]
     llm_response_extractions: Dict[str, Any]

@@ -9,14 +9,19 @@ from src.agents.CaseOrchestratorAgent.nodes import (
     extract_intents_entities_node,
     save_extraction_node,
     auth_policy_evaluator_node,
-    plan_actions_node,
     review_finalize_node,
     human_review_node,
     auth_session_manager_node,
     create_or_update_auth_request_draft_node,
     approve_and_send_auth_request_node,
+    plan_non_auth_actions_node,
+    plan_auth_actions_node,
+    join_plans_node
 )
-from src.agents.CaseOrchestratorAgent.routers import route_after_auth
+from src.agents.CaseOrchestratorAgent.routers.route_after_actions_join import route_after_actions_join
+from src.agents.CaseOrchestratorAgent.routers.route_auth_branch import route_auth_branch, route_non_auth_branch
+from src.agents.CaseOrchestratorAgent.routers.route_after_auth import route_after_auth
+
 from src.helpers.config import get_settings
 
 from dotenv import load_dotenv
@@ -28,7 +33,7 @@ s = get_settings()
 
 # your settings currently use LANGCHAIN_* names
 if s.LANGCHAIN_API_KEY:
-    os.environ["LANGSMITH_TRACING"] = str(s.LANGCHAIN_TRACING_V2 or "true")
+    os.environ["LANGSMITH_TRACING"] = "true" if s.LANGCHAIN_TRACING_V2 else "false"
     os.environ["LANGSMITH_API_KEY"] = s.LANGCHAIN_API_KEY
     os.environ["LANGSMITH_PROJECT"] = s.LANGCHAIN_PROJECT or "default"
     if s.LANGCHAIN_ENDPOINT:
@@ -42,46 +47,93 @@ def build_graph():
     g.add_node("create_case_node", create_case_node)
     g.add_node("message_writer_node", create_msg_node)
     g.add_node("save_extraction_node", save_extraction_node)
+
     g.add_node("auth_policy_evaluator_node", auth_policy_evaluator_node)
-    g.add_node("plan_actions_node", plan_actions_node)
-    g.add_node("human_review_node", human_review_node)
+
+    g.add_node("plan_non_auth_actions_node", plan_non_auth_actions_node)
+
     g.add_node("auth_session_manager_node", auth_session_manager_node)
+    g.add_node("plan_auth_actions_node", plan_auth_actions_node)
+
+    g.add_node("join_plans_node", join_plans_node, defer=True)
+
+    g.add_node("human_review_node", human_review_node)
+
     g.add_node("create_or_update_auth_request_draft_node", create_or_update_auth_request_draft_node)
+
     g.add_node("approve_and_send_auth_request_node", approve_and_send_auth_request_node)
-
-
 
     g.add_node("review_finalize_node", review_finalize_node)
 
+    # ===== Entry =====
     g.set_entry_point("extract_intents_entities_node")
 
+    # ===== Linear pre-processing =====
     g.add_edge("extract_intents_entities_node", "create_case_node")
     g.add_edge("create_case_node", "message_writer_node")
     g.add_edge("message_writer_node", "save_extraction_node")
     g.add_edge("save_extraction_node", "auth_policy_evaluator_node")
-    g.add_edge("auth_policy_evaluator_node", "auth_session_manager_node")
-    g.add_edge("auth_session_manager_node", "create_or_update_auth_request_draft_node")
-    g.add_edge("create_or_update_auth_request_draft_node", "human_review_node")
-    g.add_edge("human_review_node", "approve_and_send_auth_request_node")
-    g.add_edge("approve_and_send_auth_request_node", END)
 
+    # ===== Fan-out =====
+    # Always plan non-auth
+
+    # In parallel, decide auth branch
+    g.add_conditional_edges(
+        "auth_policy_evaluator_node",
+        route_non_auth_branch,
+        {
+            "plan_non_auth_actions_node": "plan_non_auth_actions_node",
+             END: END,
+        },
+    )
+
+    # In parallel, decide auth branch
+    g.add_conditional_edges(
+        "auth_policy_evaluator_node",
+        route_auth_branch,
+        {
+            "auth_session_manager_node": "auth_session_manager_node",
+             END: END,
+        },
+    )
+
+    # ===== Auth flow =====
     g.add_conditional_edges(
         "auth_session_manager_node",
-        route_after_auth,
+        route_after_auth, # success vs missing
         {
-            "plan_actions_node": "plan_actions_node",
+            "plan_auth_actions_node": "plan_auth_actions_node",
             "create_or_update_auth_request_draft_node": "create_or_update_auth_request_draft_node",
         },
     )
 
-    # g.add_edge("plan_actions_node", "human_review_node")
-    # g.add_edge("human_review_node", "review_finalize_node")
-    #
-    # g.add_edge("auth_policy_evaluator_node", "plan_actions_node")
-    #
-    # g.add_edge("plan_actions_node", "human_review_node")
-    # g.add_edge("human_review_node", "review_finalize_node")
-    # g.add_edge("review_finalize_node", END)
+
+    # IMPORTANT: auth request draft must also rejoin
+    g.add_edge("create_or_update_auth_request_draft_node", "approve_and_send_auth_request_node")
+
+    g.add_edge("plan_auth_actions_node", "join_plans_node")
+
+    g.add_edge("approve_and_send_auth_request_node", "join_plans_node")
+
+    # ===== Fan-in =====
+    # Non-auth branch joins too
+    g.add_edge("plan_non_auth_actions_node", "join_plans_node")
+
+
+
+    # ===== Review & finalize =====
+    g.add_conditional_edges(
+        "join_plans_node",
+        route_after_actions_join,
+        {
+            "go_review": "human_review_node",
+            END: END,
+        },
+    )
+    g.add_edge("human_review_node", "review_finalize_node")
+
+    g.add_edge("review_finalize_node", END)
+
 
     return g.compile()
 
@@ -114,6 +166,17 @@ async def main():
         """,
     }
 
+    email_no_auth = {
+        "from_email": "younis.eng.software@gmail.com",
+        "to_email": "test@younus-alsaadi.de",
+        "subject": "Meter reading + dynamic tariff question",
+        "direction": "inbound",
+        "body": """
+            Can you explain the dynamic tariff?
+            """,
+    }
+
+
     email_reply = {
         "from_email": "younis.eng.software@gmail.com",
         "to_email": "test@younus-alsaadi.de",
@@ -122,7 +185,10 @@ async def main():
         "body": """,
         Hello,
 
+        
+        Contract number = C-001
         My postal number, is 22201
+        
         
         Best regards
         Younus AL-Saadi
@@ -133,7 +199,7 @@ async def main():
         I am the AI customer support assistant handling your case. To proceed with your request, we kindly ask you to provide the following information to verify your identity:
         - Contract number
         
-        Please reply to this email with the requested details and ensure the case ID ed217587-c412-4a99-9ae8-e87a0694bf9a remains in the subject line.
+        Please reply to this email with the requested details and ensure the case ID a96b72b9-f2ff-4660-a00e-7686eb843cc3 remains in the subject line.
 
         Thank you for your cooperation.
 
@@ -143,7 +209,8 @@ async def main():
     }
 
     initial_state: AgentState = {
-        "Message": email_reply,
+        "Message": email
+        ,
         "errors": [],
     }
 

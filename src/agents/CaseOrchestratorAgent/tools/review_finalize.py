@@ -21,20 +21,21 @@ If rejected:
 Cases.case_status="failed" (or stay in "pending_review")
 """
 
-
 from __future__ import annotations
 
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Literal
 from uuid import UUID
 
+from src.agents.CaseOrchestratorAgent.utils.llm.build_emails_draft import build_email_to_user
+from src.agents.CaseOrchestratorAgent.utils.mcp_tools_provider import MCPToolsProvider
+from src.email_servers.IMAPSMTP.send_email_via_mcp import send_email_via_mcp
 from src.logs.log import build_logger
 from src.models.ActionsModel import ActionsModel
 from src.models.CasesModel import CasesModel
 from src.models.DraftsModel import DraftsModel
 from src.models.MessagesModel import MessagesModel
 from src.models.ReviewsModel import ReviewsModel
-from src.email_servers.IMAPSMTP.imap_smtp_mcp_server import email_smtp_send
 from src.models.db_schemes import Reviews, Messages
 
 import logging
@@ -54,13 +55,12 @@ async def finalize_case_after_review(
         reviewer_name: str,
         reviewer_email: str = "system@local",
         support_from_email: str = "support@local",
-        subject: str = "Update on your request",
         edited_customer_reply: Optional[str] = None, # text coming from the human reviewer.
         review_notes: Optional[str] = None,
 
 )-> Dict[str, Any]:
     """
-    Step F:
+    Last step:
     - Insert a Reviews row (approved/rejected)
     - If approved:
         - execute Actions (mark executed + store result)
@@ -75,13 +75,14 @@ async def finalize_case_after_review(
     messages_model = await MessagesModel.create_instance(db_client=container.db_client)
     cases_model = await CasesModel.create_instance(db_client=container.db_client)
 
-    draft = await drafts_model.get_draft_by_case_uuid(case_uuid=case_id)
+    draft = await drafts_model.get_draft_by_case_and_type(case_id=case_id, draft_type="public_reply")
 
     if draft is None:
         return {"ok": False, "error": "No draft found for this case."}
 
 
-    final_reply_text = (edited_customer_reply or draft.customer_reply_draft or "").strip()
+    subject, final_reply_text= await build_email_to_user(container,case_id,edited_customer_reply, draft.customer_reply_draft )
+
     if decision == "approved" and not final_reply_text:
         return {"ok": False, "error": "Approved but final reply text is empty."}
 
@@ -125,8 +126,8 @@ async def finalize_case_after_review(
             "review_id": str(getattr(review, "id", "")),
         }
 
-        # 4) Approved: execute actions
-        #    We will execute only actions with status "planned"
+    # 4) Approved: execute actions
+    #    We will execute only actions with status "planned"
     actions = await actions_model.list_actions_by_case(case_id=case_id)
 
     print(f"actions got and is  {actions}")
@@ -163,8 +164,6 @@ async def finalize_case_after_review(
 
     # 5) Create outbound message (final reply)
     # NOTE: i should pass the customer "to_email" into your email API.
-    # the Messages table currently doesn't store 'to_email'; i can add it to meta or case meta later.
-
 
     latest_inbound = await messages_model.get_latest_inbound_message(case_id=case_id)
 
@@ -182,17 +181,38 @@ async def finalize_case_after_review(
         to_email=to_email,
     )
 
-
-
     msg = await messages_model.create_message(message=msg_form)
 
     print(f"msg got and is  {msg} and to email is{msg.to_email}")
     print("=" * 20)
 
     # Here I would call the email API:
-    res = email_smtp_send(to=to_email, subject=subject, body=final_reply_text)
-    print("email send done and result:", res)
-    print("=" * 20)
+    try:
+        final_subject = subject if subject.lower().startswith("re:") else f"Re: {subject}"
+
+        res = await send_email_via_mcp(
+            to_email=to_email,
+            subject=final_subject,
+            body=final_reply_text,
+        )
+
+        print("email send done and result:", res)
+    except Exception as e:
+        # If sending fails, do NOT claim waiting_customer
+        # Keep case in pending_review (or mark failed) depending on your policy
+        case = await cases_model.get_case_by_uuid(case_id)
+        meta = dict((case.case_status_meta or {}))
+        meta.update({"stage": "auth_request_send_failed", "error": str(e)})
+        print(f"can not send email cause error, {str(e)}")
+
+        await cases_model.update_case_status_by_uuid(
+            case_uuid=case_id,
+            new_status="pending_review",
+            status_meta=meta,
+        )
+        return {"ok": False, "error": f"SMTP send failed: {e}"}
+
+
 
     # 6) Close the case
     await cases_model.update_case_status_by_uuid(

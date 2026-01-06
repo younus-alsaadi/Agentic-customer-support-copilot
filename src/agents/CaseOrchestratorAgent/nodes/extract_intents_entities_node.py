@@ -42,7 +42,11 @@ async def extract_intents_entities_node(state: AgentState):
             {"stage": "extract_intents_entities_node", "error": "LLM returned empty result"})
         return state
 
-    state["llm_response_extractions"] = llm_intents_entities_result
-    state["case_id"]= _normalize_case_uuid(llm_intents_entities_result["case_id"])
 
-    return state
+    update = {
+        "llm_response_extractions": llm_intents_entities_result,
+        "case_id": _normalize_case_uuid(llm_intents_entities_result["case_id"]),
+    }
+
+
+    return update

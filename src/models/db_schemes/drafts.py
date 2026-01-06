@@ -22,9 +22,8 @@ class Drafts(BaseModel):
     @classmethod
     def get_indexes(cls):
         return [
-            # Usually one "current" draft per case
-            {"key": [("case_id", 1)], "name": "draft_case_id_uq", "unique": True},
+            # One draft per type per case
+            {"key": [("case_id", 1), ("draft_type", 1)], "name": "draft_case_id_type_uq", "unique": True},
 
-            # for listing recent drafts
             {"key": [("updated_at", -1)], "name": "draft_updated_at_desc_idx", "unique": False},
         ]

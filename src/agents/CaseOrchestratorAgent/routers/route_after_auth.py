@@ -7,7 +7,8 @@ def route_after_auth(state: AgentState) -> str:
 
     # handle typos like "success"
     if auth_status == "success":
-        return "plan_actions_node"
+        return "plan_auth_actions_node"
 
     # missing / failed -> ask for auth data
     return "create_or_update_auth_request_draft_node"
+

@@ -51,8 +51,9 @@ async def auth_session_manager_node(state: AgentState) -> AgentState:
     print( f"Result auth_sessions from auth_session_manager_node is {result}")
     print("="*20)
 
-    state["auth_sessions"] = _auth_sessions_orm_to_state(result["auth_session"])
+    update={"auth_sessions": _auth_sessions_orm_to_state(result["auth_session"])}
 
-    print(f"state Result for auth_sessions is {state["auth_sessions"]}")
+
+    print(f"state Result for auth_sessions is update")
     print("="*20)
-    return state
+    return update

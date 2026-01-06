@@ -12,6 +12,8 @@ class Drafts(SQLAlchemyBase):
     case_id = Column(UUID(as_uuid=True), ForeignKey("cases.case_uuid", ondelete="CASCADE"), nullable=False)
 
     customer_reply_draft = Column(String, nullable=False)   # draft email to customer
+    customer_reply_draft_subject = Column(String, nullable=False)
+
     internal_summary = Column(String, nullable=False)       # summary for support agent
 
     draft_type = Column(String, nullable=False)

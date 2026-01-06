@@ -53,5 +53,4 @@ async def create_msg_node(state: AgentState) -> AgentState:
         state.setdefault("errors", []).append({"stage": "create_msg_node", "error": "message_writer returned None"})
         return state
 
-    state["Message"] = _message_orm_to_state(new_msg_orm)
-    return state
+    return {"Message": _message_orm_to_state(new_msg_orm)}

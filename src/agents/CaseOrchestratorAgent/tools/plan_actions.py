@@ -1,315 +1,126 @@
-# Plan actions for the intents
-#
-# When auth is success (or no auth needed)
-
-
 from __future__ import annotations
-
 import logging
-from datetime import datetime
-from typing import Any, Dict, List, Optional
-from uuid import UUID
-
+from src.agents.CaseOrchestratorAgent.utils.actions.planner import plan_actions_from_extracted_intents
+from src.agents.CaseOrchestratorAgent.utils.actions.serialize_actions import action_to_dict
+from src.agents.CaseOrchestratorAgent.utils.drafts.final_reply_draft import build_option1_public_text, \
+    build_option2_missing_info_text, build_option3_processing_text
+from src.agents.CaseOrchestratorAgent.utils.drafts.internal_summary import build_internal_summary
+from src.agents.CaseOrchestratorAgent.utils.drafts.serialize_drafts import draft_to_dict
+from src.agents.CaseOrchestratorAgent.utils.uuid_utils import to_uuid
 from src.logs.log import build_logger
 from src.models.ActionsModel import ActionsModel
 from src.models.CasesModel import CasesModel
 from src.models.DraftsModel import DraftsModel
-from src.models.db_schemes import Actions
+from uuid import UUID
+from typing import Any, Dict, List, Optional
+
 log = build_logger(level=logging.DEBUG)
 
-# Map intent name -> action_type (only for intents that need a backend action)
-INTENT_TO_ACTION: Dict[str, str] = {
-    "MeterReadingSubmission": "submit_meter_reading",
-    "PersonalDataChange": "update_personal_data",
-    "ContractIssues": "handle_contract_issue",
-    # Add more...
-}
-
-# If an action needs specific entities, declare them here
-ACTION_REQUIRED_ENTITIES: Dict[str, List[str]] = {
-    "submit_meter_reading": ["meter_reading_value"],  # add meter_number/date if required
-    "update_personal_data": [],                       # depends on my needs
-    "handle_contract_issue": [],                      # depends on my needs
-}
-
-# Safety override: even if LLM mistakenly says requires_auth=False, i can force auth here
-ALWAYS_SENSITIVE_ACTIONS = {"submit_meter_reading", "update_personal_data", "handle_contract_issue"}
-
-
-
-
-
-def _compute_missing_entities(required: List[str], entities: Dict[str, Any]) -> List[str]:
-    missing: List[str] = []
-    for k in required:
-        v = entities.get(k)
-        if v is None or v == "" or v == []:
-            missing.append(k)
-    return missing
-
-
-def plan_actions_from_extracted_intents(
-    intents: List[Dict[str, Any]],
-    entities: Dict[str, Any],
-    auth_status: str,            # "success" | "missing" | "failed"
-    min_confidence: float = 0.60,
-) -> List[Dict[str, Any]]:
-    """
-    Returns action_specs:
-    [
-      {
-        "action_type": "submit_meter_reading",
-        "action_status": "planned" | "blocked",
-        "result": {...}
-      },
-      ...
-    ]
-    """
-    action_specs: List[Dict[str, Any]] = []
-
-    for intent in intents or []:
-        if not isinstance(intent, dict):
-            continue
-
-        intent_name = intent.get("name")
-        confidence = float(intent.get("confidence") or 0.0)
-        requires_auth_llm = bool(intent.get("requires_auth", False))
-        reason = intent.get("reason")
-
-        # Map intent -> action (skip info-only intents like ProductInfoRequest)
-        action_type = INTENT_TO_ACTION.get(intent_name)
-        if not action_type:
-            continue
-
-        # Confidence gate
-        if confidence < min_confidence:
-            action_specs.append({
-                "action_type": action_type,
-                "action_status": "blocked",
-                "result": {
-                    "blocked_reason": "low_confidence_intent",
-                    "intent_name": intent_name,
-                    "confidence": confidence,
-                    "reason": reason,
-                },
-            })
-            continue
-
-
-        if auth_status:
-            action_specs.append({
-                "action_type": action_type,
-                "action_status": "no_need",
-                "result": {
-                    "intent_name": intent_name,
-                    "confidence": confidence,
-                    "reason": reason,
-                },
-            })
-            continue
-
-        # Auth gate (LLM says requires_auth, plus server-side override)
-        requires_auth = requires_auth_llm or (action_type in ALWAYS_SENSITIVE_ACTIONS)
-        if requires_auth and auth_status != "success":
-            action_specs.append({
-                "action_type": action_type,
-                "action_status": "blocked",
-                "result": {
-                    "blocked_reason": "auth_missing",
-                    "intent_name": intent_name,
-                    "confidence": confidence,
-                    "reason": reason,
-                },
-            })
-            continue
-
-        # Entity validation
-        required_entities = ACTION_REQUIRED_ENTITIES.get(action_type, [])
-        missing_entities = _compute_missing_entities(required_entities, entities)
-
-        if missing_entities:
-            action_specs.append({
-                "action_type": action_type,
-                "action_status": "blocked",
-                "result": {
-                    "blocked_reason": "missing_entity",
-                    "missing": missing_entities,
-                    "intent_name": intent_name,
-                    "confidence": confidence,
-                    "reason": reason,
-                },
-            })
-            continue
-
-        # Ready to run later
-        action_specs.append({
-            "action_type": action_type,
-            "action_status": "planned",
-            "result": {
-                "intent_name": intent_name,
-                "confidence": confidence,
-                "reason": reason,
-                "entities_snapshot": {k: entities.get(k) for k in required_entities},
-            },
-        })
-
-    return action_specs
-
-# ---------- Draft building (template; plug LLM later if you want) ----------
-
-def build_customer_reply_draft(
-    intents: List[Dict[str, Any]],
-    entities: Dict[str, Any],
-    topic_keywords: Optional[List[str]],
-    action_specs: List[Dict[str, Any]],
-) -> str:
-    """
-    Simple template draft. later use llm
-    """
-    lines: List[str] = ["Hello,", ""]
-
-    if topic_keywords:
-        lines.append(f"I understood your request about: {', '.join(topic_keywords)}.")
-        lines.append("")
-
-    if not action_specs:
-        # Example: ProductInfoRequest only (no actions created)
-        lines += [
-            "Thanks for your message.",
-            "We are reviewing it and will respond shortly.",
-            "",
-            "Kind regards",
-        ]
-        return "\n".join(lines)
-
-    planned = [a for a in action_specs if a.get("action_status") == "planned"]
-    blocked = [a for a in action_specs if a.get("action_status") == "blocked"]
-
-    if planned:
-        lines.append("We can proceed with the following:")
-        for a in planned:
-            lines.append(f"- {a.get('action_type')}")
-        lines.append("")
-
-    if blocked:
-        lines.append("We still need something before we can continue:")
-        for a in blocked:
-            res = a.get("result") or {}
-            reason = res.get("blocked_reason", "blocked")
-            if reason == "missing_entity":
-                missing = res.get("missing", [])
-                lines.append(f"- {a.get('action_type')}: missing {', '.join(missing)}")
-            elif reason == "auth_missing":
-                lines.append(f"- {a.get('action_type')}: identity verification required")
-            elif reason == "low_confidence_intent":
-                lines.append(f"- {a.get('action_type')}: please confirm your request (unclear message)")
-            else:
-                lines.append(f"- {a.get('action_type')}: {reason}")
-        lines.append("")
-
-    lines.append("Kind regards")
-    return "\n".join(lines)
-
-
-def build_internal_summary(
-    intents: List[Dict[str, Any]],
-    topic_keywords: Optional[List[str]],
-    action_specs: List[Dict[str, Any]],
-    auth_status: str,
-) -> str:
-    intent_names = [i.get("name") for i in intents or [] if isinstance(i, dict)]
-    compact_actions = [
-        {"type": a.get("action_type"), "status": a.get("action_status"), "why": (a.get("result") or {}).get("blocked_reason")}
-        for a in action_specs
-    ]
-    return (
-        f"Auth status: {auth_status}\n"
-        f"Intents: {intent_names}\n"
-        f"Topics: {topic_keywords or []}\n"
-        f"Actions: {compact_actions}"
-    )
-
-
-# ---------- Step E main function ----------
 
 async def plan_actions_and_create_final_draft(
     container,
-    case_id: UUID,
+    case_id: UUID,  # can also come as str from state
     intents: List[Dict[str, Any]],
     entities: Dict[str, Any],
     topic_keywords: Optional[List[str]],
-    auth_status: Optional[str],  # "success" | "missing" | "failed" |
+    auth_status: Optional[str] = None,  # "no_need" OR "success" (etc.)
 ) -> Dict[str, Any]:
     """
-    Step E:
-    - Create Actions rows (planned/blocked)
-    - Create/update Drafts (final customer reply + internal summary + action_specs)
-    - Set case_status = "pending_review"
+    Safe for parallel calls:
+    - non-auth node writes option1
+    - auth node writes option2 OR option3 (+ actions)
+    Both update the SAME draft row without losing content.
     """
+
+    print("\n" + "+#" * 80)
+    print("[plan_actions_and_create_final_draft] START")
+    print("case_id:", case_id)
+    print("auth_status:", auth_status)
+    print("topic_keywords:", topic_keywords)
+    print("intents:", [i.get("name") for i in (intents or []) if isinstance(i, dict)])
+    print("=" * 80)
+
+    # -------------------------
+    # start
+    # -------------------------
+    case_uuid = to_uuid(case_id)
+    entities = entities or {}
+    topic_keywords = topic_keywords or []
 
     actions_model = await ActionsModel.create_instance(db_client=container.db_client)
     drafts_model = await DraftsModel.create_instance(db_client=container.db_client)
     cases_model = await CasesModel.create_instance(db_client=container.db_client)
 
-    # 1) Plan actions (deterministic)
-    action_specs = plan_actions_from_extracted_intents(
-        intents=intents,
-        entities=entities or {},
-        auth_status=auth_status,
-    )
+    # Decide which option text we produce in THIS call
+    new_reply_draft_text = ""
+    action_specs: List[Dict[str, Any]] = []
+    created_actions = []
+
+    if auth_status == "no_need":
+        # Option 1 only (public info)
+        new_reply_draft_text = build_option1_public_text(topic_keywords)
+
+    else:
+        # Option 2 OR 3 (backend flow)
+        action_specs = plan_actions_from_extracted_intents(intents=intents, entities=entities)
+
+        if any(a.get("action_status") == "blocked" for a in action_specs):
+            new_reply_draft_text = build_option2_missing_info_text(action_specs)
+        else:
+            new_reply_draft_text = build_option3_processing_text(action_specs, intents)
+
+    print("\n[option_select]")
+    print("new_reply_draft_text (len):", len(new_reply_draft_text or ""))
+    print("new_reply_draft_text (preview):", (new_reply_draft_text or "")[:250])
 
 
-    created_actions = await actions_model.insert_many_actions(case_id=case_id,action_specs=action_specs)
+    subject_topic = topic_keywords[0] if topic_keywords else "Your request"
+    customer_reply_subject = f"Re: {subject_topic} [CASE: {case_uuid}]"
 
-
-    # 3) Build final draft (template now)
-    customer_reply = build_customer_reply_draft(
-        intents=intents,
-        entities=entities or {},
-        topic_keywords=topic_keywords,
-        action_specs=action_specs,
-    )
+    # Build internal summary (only meaningful when action_specs exist)
     internal_summary = build_internal_summary(
         intents=intents,
         topic_keywords=topic_keywords,
         action_specs=action_specs,
-        auth_status=auth_status,
+        auth_status=auth_status or "",
     )
 
-    # 4) Upsert Drafts
-    draft = await drafts_model.upsert_draft_for_case(
-        case_id=case_id,
-        customer_reply_draft = customer_reply,
-        internal_summary = internal_summary,
-        actions_suggested= action_specs
+
+    # Draft upsert/merge (parallel-safe)
+    draft = await drafts_model.upsert_public_reply_draft_merge(
+        case_uuid=case_uuid,
+        new_reply_draft_text=new_reply_draft_text,
+        customer_reply_subject=customer_reply_subject,
+        internal_summary=internal_summary,
+        action_specs=action_specs if action_specs else None,
+        draft_type="public_reply",
+        max_attempts=2,
     )
 
-    # 5) Update case to pending_review
+    # -------------------------
+    # Actions rows (ONLY for auth flow)
+    # -------------------------
+    if auth_status != "no_need" and action_specs:
+        created_actions = await actions_model.insert_many_actions(case_id=case_uuid, action_specs=action_specs)
+
+    # -------------------------
+    # Case status (both nodes may call it; it’s okay)
+    # -------------------------
     await cases_model.update_case_status_by_uuid(
-        case_uuid=case_id,
+        case_uuid=case_uuid,
         new_status="pending_review",
         status_meta={
             "stage": "final_draft_ready",
-            "action_ids":  [str(a.id) for a in created_actions],
+            "action_ids": [str(a.id) for a in (created_actions or [])],
             "auth_status": auth_status,
-        },
-    )
-
-    log.info(
-        "Step E done",
-        extra={
-            "case_uuid": str(case_id),
-            "action_count": len(action_specs),
-            "draft_id": str(getattr(draft, "id", "")) if draft else None,
         },
     )
 
     return {
         "ok": True,
-        "case_uuid": str(case_id),
-        "draft":draft,
+        "case_uuid": str(case_uuid),
+        "draft": draft_to_dict(draft),
         "case_status": "pending_review",
-        "actions_suggested": created_actions,
+        "actions_created": [action_to_dict(a) for a in (created_actions or [])],
+        "action_specs": action_specs,
     }
-
-

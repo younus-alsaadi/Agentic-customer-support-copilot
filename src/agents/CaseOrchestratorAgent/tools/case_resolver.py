@@ -1,22 +1,10 @@
 import re
-from typing import Optional
 from src.models.CasesModel import CasesModel
 from src.models.db_schemes import Cases
 import logging
 from src.logs.log import build_logger
-import asyncio
-
-from src.utils.client_deps_container import DependencyContainer
 
 log = build_logger(level=logging.DEBUG)
-
-CASE_TOKEN_RE = re.compile(r"\[CASE:\s*([0-9a-fA-F-]{36})\]")
-
-def _extract_case_uuid(subject: str | None, body: str | None) -> Optional[str]:
-    text = f"{subject or ''}\n{body or ''}"
-    m = CASE_TOKEN_RE.search(text)
-    return m.group(1) if m else None
-
 
 def _normalize_subject(subject: str | None) -> str:
     if not subject:
@@ -47,14 +35,6 @@ async def case_resolver(container,available_case_uuid,from_email, subject, body)
 
     # 2) Heuristic link: open case by sender (+ subject similarity)
     normalized_subject = _normalize_subject(subject)
-
-    # case = await case_model.find_open_case_by_sender(
-    #     from_email=from_email,
-    #     normalized_subject=normalized_subject,  # optional filter
-    #     lookback_days=14,
-    # )
-    # if case:
-    #     return case
 
     # 3) Create new case
 

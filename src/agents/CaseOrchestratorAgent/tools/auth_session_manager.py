@@ -2,65 +2,15 @@ from __future__ import annotations
 from typing import Any, Dict, List, Optional
 from uuid import UUID
 
+from redis.utils import safe_str
+
+from src.agents.CaseOrchestratorAgent.utils.auth.pii import is_empty, safe_hash
+from src.agents.CaseOrchestratorAgent.utils.auth.policy import derive_required_fields, MAX_AUTH_ATTEMPTS
 from src.helpers.config import get_settings
 from src.models.AuthSessionsModel import AuthSessionsModel
 from src.models.CasesModel import CasesModel
 from src.models.ContractsModel import ContractsModel
 from src.utils.pii_safe import hash_field, mask_value
-
-MAX_AUTH_ATTEMPTS = 3  # tune
-
-DEFAULT_REQUIRED_FIELDS = ["contract_number", "postal_code"]
-
-REQUIRED_FIELDS_BY_INTENT = {
-    "MeterReadingSubmission": ["contract_number", "postal_code"],
-    "ChangeAddress": ["contract_number", "postal_code", "birthday"],
-    "BankDetailsChange": ["contract_number", "postal_code", "birthday"],
-}
-
-
-def _is_empty(v: Any) -> bool:
-    return v is None or v == "" or v == {} or v == "null"
-
-
-def _safe_str(v: Any) -> Optional[str]:
-    if _is_empty(v):
-        return None
-    return str(v).strip() or None
-
-
-def _safe_hash(v: Optional[str], salt: str) -> Optional[str]:
-    if not v:
-        return None
-    return hash_field(v, salt=salt)
-
-
-def _safe_masked(val: Optional[str]) -> str:
-    if not val:
-        return "<missing>"
-    return mask_value(val)
-
-
-
-def derive_required_fields(auth_intents: List[Dict[str, Any]]) -> List[str]:
-    names = []
-    for it in auth_intents:
-        if isinstance(it, dict) and it.get("name"):
-            names.append(it["name"])
-
-    out = set()
-    for n in names:
-        out.update(REQUIRED_FIELDS_BY_INTENT.get(n, []))
-
-    if not out:
-        out.update(DEFAULT_REQUIRED_FIELDS)
-
-    return list(out)
-
-
-
-
-
 
 async def auth_session_manager(
     container,
@@ -146,9 +96,9 @@ async def auth_session_manager(
 
     def _get_hash_prefer_new(key: str) -> Optional[str]:
         # 1) If user provided new raw value -> hash it (NEW wins)
-        if key in entities and not _is_empty(entities.get(key)):
-            raw = _safe_str(entities.get(key))
-            return _safe_hash(raw, salt) if raw else None
+        if key in entities and not is_empty(entities.get(key)):
+            raw = safe_str(entities.get(key))
+            return safe_hash(raw, salt) if raw else None
 
         # 2) Else reuse stored hash
         v = stored_fields.get(key)
@@ -220,17 +170,17 @@ async def auth_session_manager(
     # Store safe fields in AuthSessions: only identity info, hashed + masked
     safe_provided: Dict[str, Any] = {}
 
-    if "contract_number" in entities and not _is_empty(entities.get("contract_number")):
-        cn_raw = _safe_str(entities.get("contract_number"))
-        safe_provided["contract_number"] = {"hash": _safe_hash(cn_raw, salt), "masked": mask_value(cn_raw)}
+    if "contract_number" in entities and not is_empty(entities.get("contract_number")):
+        cn_raw = safe_str(entities.get("contract_number"))
+        safe_provided["contract_number"] = {"hash": safe_hash(cn_raw, salt), "masked": mask_value(cn_raw)}
 
-    if "postal_code" in entities and not _is_empty(entities.get("postal_code")):
-        pc_raw = _safe_str(entities.get("postal_code"))
-        safe_provided["postal_code"] = {"hash": _safe_hash(pc_raw, salt), "masked": mask_value(pc_raw)}
+    if "postal_code" in entities and not is_empty(entities.get("postal_code")):
+        pc_raw = safe_str(entities.get("postal_code"))
+        safe_provided["postal_code"] = {"hash": safe_hash(pc_raw, salt), "masked": mask_value(pc_raw)}
 
-    if "birthday" in entities and not _is_empty(entities.get("birthday")):
-        bd_raw = _safe_str(entities.get("birthday"))
-        safe_provided["birthday"] = {"hash": _safe_hash(bd_raw, salt), "masked": mask_value(bd_raw)}
+    if "birthday" in entities and not is_empty(entities.get("birthday")):
+        bd_raw = safe_str(entities.get("birthday"))
+        safe_provided["birthday"] = {"hash": safe_hash(bd_raw, salt), "masked": mask_value(bd_raw)}
 
     print("[AUTH] safe_provided to store (new inputs only):", safe_provided)
     print("=" * 20)

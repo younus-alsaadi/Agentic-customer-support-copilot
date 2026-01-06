@@ -16,12 +16,17 @@ async def auth_policy_evaluator_node(state: AgentState):
         })
         intents = []
 
-    intents = separate_auth_intents(intents=intents)
+    intents_split = separate_auth_intents(intents=intents)
 
-    state["auth_intents"] = intents["auth_intents"]
-    state["non_auth_intents"] = intents["non_auth_intents"]
+    update = {
+        "auth_intents": intents_split["auth_intents"],
+        "non_auth_intents": intents_split["non_auth_intents"],
+    }
 
-    return state
+    print("state (auth_intents):", update["auth_intents"])
+    print("state (non_auth_intents):", update["non_auth_intents"])
+
+    return update
 
 
 

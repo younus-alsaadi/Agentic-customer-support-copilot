@@ -13,20 +13,31 @@ async def approve_and_send_auth_request_node(state: AgentState) -> AgentState:
 
     case = state.get("Case") or {}
 
-    human_review = state.get("human_review") or {}
-    decision = human_review.get("decision") or {}
 
-    reviewer_email = human_review.get("reviewer_email") or ""
-    reviewer_name = human_review.get("reviewer_name") or ""
-    review_notes = human_review.get("review_notes") or ""
-    edited_customer_reply = human_review.get("edited_customer_reply") or ""
+    decision = "approved"
 
-    support_from_email = human_review.get("support_from_email") or {}
-    subject = human_review.get("subject") or {}
+    reviewer_email = "test@younus-alsaadi.de"
+    reviewer_name ="Younus AL-Saadi"
+    review_notes = ""
+
+    support_from_email = "test@younus-alsaadi.de"
+    subject = "auth_request"
 
     case_id = case.get("case_uuid")
     if not case_id:
         return {"errors": state.get("errors", []) + [{"stage": "plan_actions_node", "error": "Missing case_uuid"}]}
+
+
+
+    if decision != "approved":
+        return {
+            "auth_request_send_result": {
+                "ok": False,
+                "skipped": True,
+                "reason": f"decision={decision}",
+                "review_notes": review_notes,
+            }
+        }
 
     result = await approve_and_send_auth_request(
         container=container,
@@ -41,6 +52,6 @@ async def approve_and_send_auth_request_node(state: AgentState) -> AgentState:
     print("result of approve_and_send_auth_request", result)
     print("=" * 20)
 
-    return state
+    return {"auth_request_send_result": result, "auth_done": True}
 
 
