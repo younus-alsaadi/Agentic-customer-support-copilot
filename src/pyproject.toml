@@ -1,0 +1,42 @@
+[tool.poetry]
+name = "lichtblick-case-study"
+version = "0.1.0"
+description = "Implementation of the LichtBlick case study"
+authors = ["Younus AL-Saadi <alsaadi.younus@gmail.com>"]
+readme = "README.md"
+package-mode = false
+
+[tool.poetry.dependencies]
+python = ">=3.12,<3.14"
+fastapi = "0.124.0"
+starlette = "0.50.0"
+uvicorn = { version = "0.38.0", extras = ["standard"] }
+python-multipart = "0.0.20"
+python-dotenv = "1.2.1"
+pydantic-settings = "2.12.0"
+
+langgraph = "1.0.4"
+langchain = "1.1.3"
+langchain-core = "1.1.2"
+langchain-community = "0.4.1"
+langsmith = "0.4.59"
+langchain-mcp-adapters= "0.2.1"
+
+openai = "2.9.0"
+cohere = "5.20.0"
+
+SQLAlchemy = "2.0.44"
+asyncpg = "0.31.0"
+alembic = "1.17.2"
+psycopg2 = "2.9.11"
+pymongo = "4.15.5"
+
+fastmcp = "2.14.1"
+google-api-python-client = "2.187.0"
+google-auth = "2.41.0"
+google-auth-oauthlib = "1.2.3"
+google-auth-httplib2 = "0.3.0"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
