@@ -150,7 +150,7 @@ async def finalize_case_after_review(
             updated = await actions_model.update_action_status(
                 action_id=a.id,
                 new_status="executed",
-                result=execution_result,
+                result_payload=execution_result,
             )
             executed_action_ids.append(str(getattr(updated, "id", a.id)))
         except Exception as e:
@@ -158,7 +158,7 @@ async def finalize_case_after_review(
             await actions_model.update_action_status(
                 action_id=a.id,
                 new_status="blocked",
-                result={"success": False, "error": str(e)},
+                result_payload={"success": False, "error": str(e)},
             )
             blocked_action_ids.append(str(a.id))
 

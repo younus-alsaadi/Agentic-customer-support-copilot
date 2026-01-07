@@ -23,6 +23,9 @@ async def auth_policy_evaluator_node(state: AgentState):
         "non_auth_intents": intents_split["non_auth_intents"],
     }
 
+    if not update["auth_intents"]:
+        update["auth_done"] = True  # set on update, not state
+
     print("state (auth_intents):", update["auth_intents"])
     print("state (non_auth_intents):", update["non_auth_intents"])
 

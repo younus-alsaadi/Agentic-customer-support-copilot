@@ -52,11 +52,31 @@ It can run with:
 * Ollama (local)
 
 ***
+## Test runs (LangSmith traces + email screenshots)
 
-## Test the model form Langsimth:
-* [Example 1 ]()
-* [Example 2]()
-* [Example 3]() 
+Below are real end-to-end examples. Each one links to a LangSmith trace and includes a screenshot of the generated email.
+
+### Example 1 — Auth required (missing customer info)
+- Trace: [LangSmith run](https://smith.langchain.com/public/49c67b42-7b5e-471f-a796-b1a9261bd838/r)
+- Output email (screenshot):
+
+![Example 1 email screenshot](examples/example1.png)
+
+---
+
+### Example 2 — Mixed intents (public question + auth-required request, auth succeeds)
+- Trace: [LangSmith run](https://smith.langchain.com/public/4f145ab0-75e0-47dd-9d02-e216a6913a9d/r)
+- Output email (screenshot):
+
+![Example 2 email screenshot](examples/example2.png)
+
+---
+
+### Example 3 — No auth required (public question only)
+- Trace: [LangSmith run](https://smith.langchain.com/public/731a1811-f873-42bf-830a-81891ef5017e/r)
+- Output email (screenshot):
+
+![Example 3 email screenshot](examples/example3.png)
 
 # Installation:
 
@@ -150,3 +170,16 @@ alembic revision --autogenerate -m "Add ..."
 ```bash
 alembic upgrade head
 ```
+
+---
+
+## Send emails (MCP server)
+
+To actually send outbound emails, you must run the **MCP mail server**.  
+The agent will call MCP tools (for example `email_smtp_send`) to deliver the final message.
+
+Start the MCP server from the project root:
+
+```bash
+python -m src.email_servers.IMAPSMTP.imap_smtp_mcp_server
+

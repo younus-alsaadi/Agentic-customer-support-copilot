@@ -73,8 +73,6 @@ def build_graph():
     g.add_edge("save_extraction_node", "auth_policy_evaluator_node")
 
     # ===== Fan-out =====
-    # Always plan non-auth
-
     # In parallel, decide auth branch
     g.add_conditional_edges(
         "auth_policy_evaluator_node",
@@ -150,6 +148,10 @@ async def main():
         - Meter number: LB-9876543
         - Reading date: 25.09.2025
         - Reading value: 2438 kWh
+        
+           
+        Contract number = C-001
+        My postal number, is 22201
     
         Questions:
         1) How does your dynamic tariff work?
@@ -207,7 +209,7 @@ async def main():
     }
 
     initial_state: AgentState = {
-        "Message": email
+        "Message": email_no_auth
         ,
         "errors": [],
     }
