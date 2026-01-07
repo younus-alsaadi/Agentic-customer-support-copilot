@@ -48,7 +48,6 @@ It can run with:
 * OpenAI (cloud)
 * Azure OpenAI (cloud)
 * Cohere (cloud)
-* Hugging Face
 * Ollama (local)
 
 ***
@@ -264,4 +263,8 @@ Start the MCP server from the project root:
 
 ```bash
 python -m src.email_servers.IMAPSMTP.imap_smtp_mcp_server
+```
 
+## License
+
+This repository is provided for review purposes only. Copying, redistribution, or production use is not permitted. See `LICENSE`.
