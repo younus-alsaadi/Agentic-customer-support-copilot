@@ -163,3 +163,4 @@ cython_debug/
 #.idea/
 
 /src/email_servers/gemail/credentials.json
+!/Docker/agentic_copilot_pipeline/alembic.ini

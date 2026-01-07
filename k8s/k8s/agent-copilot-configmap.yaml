@@ -1,0 +1,74 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: rag-config
+data:
+  APP_NAME: "LichtBlick_case_study"
+  APP_VERSION: "0.1"
+
+  FILE_ALLOWED_TYPES: "application/pdf"
+  FILE_MAX_SIZE: "10"
+  FILE_DEFAULT_CHUNK_SIZE: "512000" # 512KB
+
+  POSTGRES_USERNAME: "postgres"
+  POSTGRES_HOST: "pgvector"
+  POSTGRES_PORT: "5432"
+  POSTGRES_MAIN_DATABASE: "RAG_QA"
+
+  GENERATION_BACKEND: "OPENAI"
+  EMBEDDING_BACKEND: "OPENAI"
+
+  GENERATION_MODEL_ID_LITERAL : '["gpt-4o-mini", "gpt-4o"]'
+  GENERATION_MODEL_ID: "gpt-3.5-turbo-0125"
+  EMBEDDING_MODEL_ID: "text-embedding-3-small"
+  EMBEDDING_MODEL_SIZE: "1536"
+
+  OPENAI_API_URL: ""
+
+  INPUT_DAFAULT_MAX_CHARACTERS: "1024"
+  GENERATION_DAFAULT_MAX_TOKENS: "200"
+  GENERATION_DAFAULT_TEMPERATURE: "0.1"
+
+
+  AZURE_OPENAI_API_VERSION: "2024-02-15-preview"
+
+  AZURE_OPENAI_CHAT_DEPLOYMENT: "gpt-5-mini-2"
+  AZURE_OPENAI_EMBED_DEPLOYMENT: "text-embedding-ada-002"
+  AZURE_OPENAI_EMBED_DIMENSIONS: ""
+
+  LANGCHAIN_TRACING_V2: "true"
+  LANGCHAIN_ENDPOINT: "https://api.smith.langchain.com"
+  LANGCHAIN_PROJECT: "Agentic-customer-support-copilot"
+
+  VECTOR_DB_BACKEND_LITERAL: '["PGVECTOR,QDRANT"]'
+  VECTOR_DB_BACKEND: "PGVECTOR"
+  VECTOR_DB_PATH: "qdrant_db"
+  VECTOR_DB_DISTANCE_METHOD: "cosine"
+  VECTOR_DB_PGVEC_INDEX_THRESHOLD: "100"
+
+  PRIMARY_LANG: "en"
+  DEFAULT_LANG: "en"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-config
+data:
+  GF_SECURITY_ADMIN_USER: "admin"
+  GF_USERS_ALLOW_SIGN_UP: "false"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: postgres-config
+data:
+  POSTGRES_EXPORTER_USER: "postgres"
+  POSTGRES_EXPORTER_DB: "lichtblick"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: postgres-exporter-config
+data:
+  POSTGRES_EXPORTER_USER: "postgres"
+  POSTGRES_EXPORTER_DB: "lichtblick"

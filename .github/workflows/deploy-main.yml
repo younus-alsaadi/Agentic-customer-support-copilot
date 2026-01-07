@@ -6,7 +6,7 @@ on:
       - main
 
 concurrency:
-  group: rag-deploy
+  group: Agentic-copilot-deploy
   cancel-in-progress: true
 
 jobs:
@@ -24,10 +24,10 @@ jobs:
           username: github_user
           key: ${{ secrets.SSH_MAIN_PRIVATE_KEY }}
           script: |
-            cd /home/github_user/workspace/LLM_QA_deploy
+            cd /home/github_user/workspace/Agentic-copilot_deploy
             git checkout main
             git pull
-            sudo systemctl restart rag.service
+            sudo systemctl restart copilot.service
             echo "Waiting..."
             sleep 20
 

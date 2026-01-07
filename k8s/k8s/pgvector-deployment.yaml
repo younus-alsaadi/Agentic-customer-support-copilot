@@ -1,0 +1,43 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pgvector
+  labels:
+    app: pgvector
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: pgvector
+  template:
+    metadata:
+      labels:
+        app: pgvector
+    spec:
+      containers:
+        - name: pgvector
+          image: pgvector/pgvector:0.8.0-pg17
+          ports:
+            - containerPort: 5432
+          env:
+            - name: POSTGRES_DB
+              valueFrom:
+                configMapKeyRef:
+                  name: rag-config
+                  key: POSTGRES_MAIN_DATABASE
+            - name: POSTGRES_USER
+              valueFrom:
+                configMapKeyRef:
+                  name: rag-config
+                  key: POSTGRES_USERNAME
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: rag-secrets
+                  key: POSTGRES_PASSWORD
+          volumeMounts:
+            - name: pgvector-data
+              mountPath: /var/lib/postgresql/data
+      volumes:
+        - name: pgvector-data
+          emptyDir: {}
