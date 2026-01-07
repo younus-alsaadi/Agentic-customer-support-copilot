@@ -1,9 +1,9 @@
 from dataclasses import dataclass
-from typing import List
+from typing import Any, Dict
 
 
 @dataclass
 class EvalItem:
-    query: str
-    ground_truth_answer: str
-    ground_truth_doc_ids: List[str]
+    email_subject: str
+    email_budy: str
+    ground_truth_output: Dict[str, Any]

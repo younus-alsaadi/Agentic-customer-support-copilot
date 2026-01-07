@@ -80,7 +80,6 @@ async def extract_intents_entities(
     log.debug("\n--- LLMs JSON ---")
     log.debug(json.dumps(llm_answer, indent=2))
 
-
     return llm_answer
 
 
