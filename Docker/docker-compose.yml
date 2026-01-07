@@ -52,39 +52,6 @@ services:
       timeout: 5s
       retries: 5
       start_period: 10s
-
-  # Qdrant (VectorDB)
-  qdrant:
-    image: qdrant/qdrant:v1.13.6
-    container_name: qdrant
-    ports:
-      - "6333:6333"
-      - "6334:6334"
-    volumes:
-      - qdrant_data:/qdrant/storage
-    networks:
-      - backend
-    restart: always
-
-  # Prometheus Monitoring
-  prometheus:
-    image: prom/prometheus:v3.3.0
-    container_name: prometheus
-    ports:
-      - "9090:9090"
-    volumes:
-      - prometheus_data:/prometheus
-      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
-    networks:
-      - backend
-    restart: always
-    command:
-      - '--config.file=/etc/prometheus/prometheus.yml'
-      - '--storage.tsdb.path=/prometheus'
-      - '--web.console.libraries=/etc/prometheus/console_libraries'
-      - '--web.console.templates=/etc/prometheus/consoles'
-      - '--web.enable-lifecycle'
-
   # Grafana Dashboard
   grafana:
     image: grafana/grafana:11.6.0-ubuntu
@@ -142,6 +109,5 @@ networks:
 volumes:
   fastapi_data:
   pgvector:
-  qdrant_data:
   prometheus_data:
   grafana_data:

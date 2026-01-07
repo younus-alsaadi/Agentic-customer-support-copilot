@@ -78,6 +78,88 @@ Below are real end-to-end examples. Each one links to a LangSmith trace and incl
 
 ![Example 3 email screenshot](examples/example3.png)
 
+
+---
+
+## Deployment (VM + Kubernetes + Cloud)
+
+This pipeline is ready for deployment in different environments:
+
+- **Dedicated server / Virtual Machine (VM)** using **Docker Compose**
+- **Dedicated server / VM** using **Kubernetes** for **container orchestration**
+  (self-managed cluster like **microk8s**)
+- **Cloud Kubernetes**:
+  - **AWS (EKS)**
+  - **Azure (AKS)**
+
+It uses:
+- **Docker images** to package and ship services
+- **Kubernetes** to orchestrate containers (deployments, services, scaling, configs, secrets)
+- **IaC (Terraform)** to provision cloud infrastructure (EKS/AKS and related resources)
+- **CI/CD (GitHub Actions)** to automate build, push, and deployment workflows
+
+---
+
+---
+
+## Evaluation (LLM output quality)
+
+We evaluate the quality of the LLM-generated responses using **Ragas**.
+
+Ragas helps measure things like:
+- answer correctness / faithfulness
+- relevance
+
+
+This is useful to compare:
+- different LLM providers (OpenAI, Azure OpenAI, Cohere, HF, Ollama)
+- different prompts
+
+---
+
+## Observability & Monitoring (latency, errors, system health)
+
+This project includes monitoring with **Prometheus + Grafana**.
+
+We track:
+- **API / agent latency** (request duration, tool duration, end-to-end case duration)
+- **Error rate** (failed runs, failed tool calls, exceptions)
+- **PostgreSQL metrics** (connections, query performance, DB health)
+- **System metrics** via **Node Exporter** (CPU, RAM, disk, network)
+
+This makes it easy to debug slowdowns, failures, and capacity issues.
+
+### Suggested SLIs (future improvement)
+
+In the future, we can add Service Level Indicators (SLIs) to measure reliability and performance:
+
+- **Latency:** p50 / p95 / p99 request duration
+- **Error rate:** percentage of requests that fail
+
+### Possible SLOs (future improvement)
+
+Example Service Level Objectives (SLOs) we could define:
+
+- **API p95 latency < 2s**
+- **Error rate < 1%**
+- **Service availability > 99.9%**
+
+---
+
+## Security & Privacy
+
+- `hash_field` used for hashing sensitive fields.
+- `mask_value` used for masking sensitive values in logs and outputs.
+- Human-in-the-loop review step included (approve / reject / needs changes) before outbound emails.
+- Prompt rules added:
+  - minimal required data requested
+  - sensitive values not repeated unless required
+  - no invented customer data
+  - separation of public vs. auth-required intents
+- Support for local LLMs included (e.g., Ollama, Hugging Face) for privacy-focused deployments.
+
+---
+
 # Installation:
 
 ### Requirements
