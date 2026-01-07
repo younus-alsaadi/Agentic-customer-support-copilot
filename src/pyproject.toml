@@ -37,6 +37,10 @@ google-auth = "2.41.0"
 google-auth-oauthlib = "1.2.3"
 google-auth-httplib2 = "0.3.0"
 
+tiktoken="0.8.0"
+ragas="0.2.14"
+datasets="3.1.0"
+
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"

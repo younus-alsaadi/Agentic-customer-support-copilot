@@ -38,6 +38,12 @@ class Settings(BaseSettings):
     GENERATION_DAFAULT_MAX_TOKENS: int = None
     GENERATION_DAFAULT_TEMPERATURE: float = None
 
+    AZURE_OPENAI_API_KEY: str = None
+    AZURE_OPENAI_ENDPOINT : str = None
+    AZURE_OPENAI_API_VERSION : str = None
+    AZURE_OPENAI_CHAT_DEPLOYMENT : str = None
+    AZURE_OPENAI_EMBED_DEPLOYMENT : str = None
+    AZURE_OPENAI_EMBED_DIMENSIONS : str = None
 
     LANGCHAIN_TRACING_V2:str = None
     LANGCHAIN_ENDPOINT:str = None
