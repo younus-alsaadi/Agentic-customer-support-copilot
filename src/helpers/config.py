@@ -45,6 +45,8 @@ class Settings(BaseSettings):
     AZURE_OPENAI_EMBED_DEPLOYMENT : str = None
     AZURE_OPENAI_EMBED_DIMENSIONS : str = None
 
+    HF_GENERATION_MODEL_ID:str = None
+
     LANGCHAIN_TRACING_V2:str = None
     LANGCHAIN_ENDPOINT:str = None
     LANGCHAIN_API_KEY:str = None
