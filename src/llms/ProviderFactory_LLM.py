@@ -1,7 +1,7 @@
 from .Enums_LLM import Enums_LLM
 from .provider import OpenAIProvider, CoHereProvider
 from .provider.AzureOpenAIProvider import AzureOpenAIProvider
-from .provider.HuggingFaceProvider import HuggingFaceProvider
+# from .provider.HuggingFaceProvider import HuggingFaceProvider
 
 
 class LLMProviderFactory:
@@ -37,12 +37,12 @@ class LLMProviderFactory:
                 default_generation_temperature=self.config.GENERATION_DAFAULT_TEMPERATURE
             )
 
-        if provider==Enums_LLM.HF.value:
-            return HuggingFaceProvider(
-                model_id=self.config.HF_GENERATION_MODEL_ID,
-                device_map="auto",
-                default_generation_do_sample=False
-            )
+        # if provider==Enums_LLM.HF.value:
+        #     return HuggingFaceProvider(
+        #         model_id=self.config.HF_GENERATION_MODEL_ID,
+        #         device_map="auto",
+        #         default_generation_do_sample=False
+        #     )
 
         return None
 

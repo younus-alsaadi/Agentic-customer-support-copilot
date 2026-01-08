@@ -31,7 +31,7 @@ async def create_case_node(state: AgentState)-> AgentState:
         # optionally set a failure status if you already have a case
         return state
 
-    case_orm = await case_resolver(container,case_uid, from_email, subject, body)
+    case_orm = await case_resolver(container,case_uid, from_email, subject)
 
     if not case_orm:
         state["errors"] = state.get("errors", [])

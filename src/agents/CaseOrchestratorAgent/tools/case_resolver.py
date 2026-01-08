@@ -3,6 +3,7 @@ from src.models.CasesModel import CasesModel
 from src.models.db_schemes import Cases
 import logging
 from src.logs.log import build_logger
+from src.utils.client_deps_container import DependencyContainer
 
 log = build_logger(level=logging.DEBUG)
 
@@ -14,7 +15,7 @@ def _normalize_subject(subject: str | None) -> str:
     s = re.sub(r"^(re:|fw:|fwd:)\s*", "", s, flags=re.IGNORECASE).strip()
     return s.lower()
 
-async def case_resolver(container,available_case_uuid,from_email, subject, body):
+async def case_resolver(container:DependencyContainer,available_case_uuid:str,from_email:str, subject:str):
     """
     Resolve a case for a new inbound email:
     1) If email contains [CASE: uuid] token -> load that case.

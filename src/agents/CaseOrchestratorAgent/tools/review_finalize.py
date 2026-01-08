@@ -40,6 +40,7 @@ from src.models.db_schemes import Reviews, Messages
 
 import logging
 
+from src.utils.client_deps_container import DependencyContainer
 
 log = build_logger(level=logging.DEBUG)
 
@@ -49,7 +50,7 @@ ReviewDecision = Literal["approved", "rejected"]
 
 
 async def finalize_case_after_review(
-        container,
+        container:DependencyContainer,
         case_id: UUID,
         decision: ReviewDecision,
         reviewer_name: str,

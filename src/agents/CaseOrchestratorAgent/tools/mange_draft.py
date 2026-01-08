@@ -15,13 +15,15 @@ from src.models.db_schemes import Messages, Reviews as ReviewsORM
 
 from typing import Any, Dict, Optional
 
+from src.utils.client_deps_container import DependencyContainer
+
 
 # -------------------------
 # Step D — Create/Update Draft + set case to pending_review
 # -------------------------
 
 async def create_or_update_auth_request_draft(
-    container,
+    container:DependencyContainer,
     case_uuid: UUID,
     auth_session_id,
     required_fields,
@@ -134,7 +136,7 @@ async def create_or_update_auth_request_draft(
 # Step D — Review approve + send auth request email + set waiting_customer
 # -------------------------
 async def approve_and_send_auth_request(
-    container,
+    container:DependencyContainer,
     case_uuid: UUID,
     reviewer_email: str,
     reviewer_name: str,

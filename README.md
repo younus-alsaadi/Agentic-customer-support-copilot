@@ -20,24 +20,10 @@ It works like  “support teammate”:
 * Creates actions (stored in Actions)
 * Sends the final email (using LLM + MCP server)
 
-```
-Inbound Email
-   ↓
-Case Resolver  →  Messages (inbound)
-   ↓
-LLM Extraction →  Extractions
-   ↓
-Auth Gate (optional) → AuthSessions
-   ↓
-Draft Reply + Action Plan → Drafts
-   ↓
-Human Review → Reviews
-   ↓
-MCP Tools Execution:
-   - Send email (SMTP) + LLM
-   ↓
-Messages (outbound) + Actions
-```
+## Workflow
+
+![Agentic Email Copilot Workflow](examples/workflow.png)
+
 
 ### Supported LLM providers
 
@@ -49,6 +35,7 @@ It can run with:
 * Azure OpenAI (cloud)
 * Cohere (cloud)
 * Ollama (local)
+* Hugging Face (local via Transformers) — tested with `mistralai/Ministral-3B-Instruct`
 
 ***
 ## Test runs (LangSmith traces + email screenshots)

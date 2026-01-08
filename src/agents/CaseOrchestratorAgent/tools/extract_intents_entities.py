@@ -6,7 +6,7 @@ from src.agents.CaseOrchestratorAgent.utils.llm.validate_llm_response import par
 from src.models.ExtractionsModel import ExtractionsModel
 from src.models.db_schemes import Extractions
 from src.logs.log import build_logger
-
+from src.utils.client_deps_container import DependencyContainer
 
 log = build_logger(level=logging.DEBUG)
 
@@ -16,7 +16,7 @@ from typing import Any, Dict, Optional
 
 
 async def extract_intents_entities(
-    container,
+    container:DependencyContainer,
     from_email: str,
     subject: Optional[str],
     body: str,

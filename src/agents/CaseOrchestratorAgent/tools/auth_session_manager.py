@@ -10,10 +10,11 @@ from src.helpers.config import get_settings
 from src.models.AuthSessionsModel import AuthSessionsModel
 from src.models.CasesModel import CasesModel
 from src.models.ContractsModel import ContractsModel
+from src.utils.client_deps_container import DependencyContainer
 from src.utils.pii_safe import hash_field, mask_value
 
 async def auth_session_manager(
-    container,
+    container:DependencyContainer,
     case_uuid: UUID,
     entities: Dict[str, Any],
     auth_intents: List[Dict[str, Any]],

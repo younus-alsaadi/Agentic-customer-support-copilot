@@ -14,11 +14,13 @@ from src.models.DraftsModel import DraftsModel
 from uuid import UUID
 from typing import Any, Dict, List, Optional
 
+from src.utils.client_deps_container import DependencyContainer
+
 log = build_logger(level=logging.DEBUG)
 
 
 async def plan_actions_and_create_final_draft(
-    container,
+    container:DependencyContainer,
     case_id: UUID,  # can also come as str from state
     intents: List[Dict[str, Any]],
     entities: Dict[str, Any],

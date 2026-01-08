@@ -5,12 +5,13 @@ from src.agents.CaseOrchestratorAgent.utils.message_utils import Direction
 from src.models.MessagesModel import MessagesModel
 from src.models.db_schemes import Messages
 from src.logs.log import build_logger
+from src.utils.client_deps_container import DependencyContainer
 
 log = build_logger(level=logging.DEBUG)
 
 
 async def message_writer(
-    container,
+    container:DependencyContainer,
     case_uuid,
     direction: Direction,
     subject: Optional[str],

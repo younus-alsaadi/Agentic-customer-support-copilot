@@ -29,7 +29,7 @@ import os
 
 s = get_settings()
 
-# your settings currently use LANGCHAIN_* names
+# set LANGSMITH settings
 if s.LANGCHAIN_API_KEY:
     os.environ["LANGSMITH_TRACING"] = "true" if s.LANGCHAIN_TRACING_V2 else "false"
     os.environ["LANGSMITH_API_KEY"] = s.LANGCHAIN_API_KEY
