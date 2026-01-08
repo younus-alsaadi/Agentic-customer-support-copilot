@@ -1,24 +1,32 @@
 # Agentic customer support-copilot
 
 
-This project is an agentic customer support copilot for handling customer emails end-to-end.
+This project is an agentic customer support copilot that handles customer emails end-to-end.
 
-It works like  “support teammate”:
+It works like a “support teammate”:
 
 * Reads an inbound email and creates (or re-uses) a Case
-
 * Saves inbound/outbound emails in Messages
-
 * Uses an LLM to extract intents + entities (stored in Extractions)
 
-* If the request is sensitive, it triggers an auth gate (stored in AuthSessions)
+Then it routes the flow in **parallel** depending on the intent type:
 
-* Plans what to do next and creates a reply draft (stored in Drafts)
+A) Non-sensitive intents (no auth needed)
+- Plan next steps + create/update a reply draft (Drafts)
+- Create actions if needed (Actions)
 
-* Runs a human-in-the-loop review step (stored in Reviews)
+B) Sensitive intents (auth needed)
+* Trigger an auth gate and track attempts/state (AuthSessions)
+* If needed, request missing verification details from the customer (Drafts + Messages outbound)
+* After verification, plan next steps
+* create/update a reply draft (Drafts) + Create actions if needed (Actions)
 
-* Creates actions (stored in Actions)
-* Sends the final email (using LLM + MCP server)
+Finally (single customer email)
+* Merge outputs from both branches into one final reply draft (Drafts)
+* Human-in-the-loop review (Reviews)
+* Create actions if needed (Actions)
+* Send one final email to the customer (LLM + MCP server)
+
 
 ## Workflow
 
